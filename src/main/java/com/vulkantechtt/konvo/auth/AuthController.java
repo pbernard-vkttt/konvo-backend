@@ -1,0 +1,123 @@
+package com.vulkantechtt.konvo.auth;
+
+import com.vulkantechtt.konvo.auth.dto.AcceptInvitationRequest;
+import com.vulkantechtt.konvo.auth.dto.AuthSessionResponse;
+import com.vulkantechtt.konvo.auth.dto.ForgotPasswordRequest;
+import com.vulkantechtt.konvo.auth.dto.InvitationPreviewResponse;
+import com.vulkantechtt.konvo.auth.dto.LoginRequest;
+import com.vulkantechtt.konvo.auth.dto.RegisterOwnerRequest;
+import com.vulkantechtt.konvo.auth.dto.ResetPasswordRequest;
+import com.vulkantechtt.konvo.security.KonvoPrincipal;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/v1/auth")
+public class AuthController {
+
+    private final AuthService authService;
+    private final AuthCookieWriter cookies;
+
+    public AuthController(AuthService authService, AuthCookieWriter cookies) {
+        this.authService = authService;
+        this.cookies = cookies;
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<AuthSessionResponse> login(
+            @Valid @RequestBody LoginRequest req,
+            HttpServletRequest http) {
+        AuthService.Session session = authService.login(req, http);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, cookies.build(session.refreshTokenRaw()).toString())
+                .body(session.body());
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<AuthSessionResponse> refresh(HttpServletRequest http) {
+        AuthService.Session session = authService.refresh(cookies.readFromRequest(http), http);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, cookies.build(session.refreshTokenRaw()).toString())
+                .body(session.body());
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(HttpServletRequest http) {
+        authService.logout(cookies.readFromRequest(http));
+        return ResponseEntity.noContent()
+                .header(HttpHeaders.SET_COOKIE, cookies.buildCleared().toString())
+                .build();
+    }
+
+    @PostMapping("/register-owner")
+    public ResponseEntity<AuthSessionResponse> registerOwner(
+            @Valid @RequestBody RegisterOwnerRequest req,
+            HttpServletRequest http) {
+        AuthService.Session session = authService.registerOwner(req, http);
+        return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED)
+                .header(HttpHeaders.SET_COOKIE, cookies.build(session.refreshTokenRaw()).toString())
+                .body(session.body());
+    }
+
+    @PostMapping("/password/forgot")
+    public ResponseEntity<ForgotPasswordResponse> forgot(@Valid @RequestBody ForgotPasswordRequest req) {
+        String raw = authService.beginPasswordReset(req.email());
+        return ResponseEntity.ok(new ForgotPasswordResponse(true, raw));
+    }
+
+    @PostMapping("/password/reset")
+    public ResponseEntity<Void> reset(@Valid @RequestBody ResetPasswordRequest req) {
+        authService.completePasswordReset(req);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/invitations/{token}/preview")
+    public InvitationPreviewResponse previewInvitation(@PathVariable String token) {
+        return authService.previewInvitation(token);
+    }
+
+    @PostMapping("/invitations/accept")
+    public ResponseEntity<AuthSessionResponse> acceptInvitation(
+            @Valid @RequestBody AcceptInvitationRequest req,
+            HttpServletRequest http) {
+        AuthService.Session session = authService.acceptInvitation(req, http);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, cookies.build(session.refreshTokenRaw()).toString())
+                .body(session.body());
+    }
+
+    @GetMapping("/me")
+    @PreAuthorize("isAuthenticated()")
+    public MeResponse me(@AuthenticationPrincipal KonvoPrincipal principal) {
+        return new MeResponse(
+                principal.userId(),
+                principal.email(),
+                principal.fullName(),
+                principal.tenantId(),
+                principal.role().name());
+    }
+
+    /**
+     * The raw token surface is dev-only: forgotten-password emails (M5/M6) will
+     * never echo the token in the response. We still respond {@code ok:true}
+     * unconditionally so the endpoint can't be used to probe email existence.
+     */
+    public record ForgotPasswordResponse(boolean ok, String devToken) {}
+
+    public record MeResponse(
+            java.util.UUID userId,
+            String email,
+            String fullName,
+            java.util.UUID tenantId,
+            String role) {}
+}
