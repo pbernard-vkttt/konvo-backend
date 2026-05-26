@@ -32,8 +32,8 @@ public class StubWhatsAppProvider implements WhatsAppProvider {
     }
 
     @Override
-    public boolean verifyWebhookSignature(String body, String signatureHeader) {
-        // The stub accepts anything; the Meta adapter (M3) will enforce HMAC-SHA256.
+    public boolean verifyWebhookSignature(UUID channelId, byte[] rawBody, String signatureHeader) {
+        // The stub accepts anything; MetaWhatsAppProvider enforces HMAC-SHA256.
         return true;
     }
 }

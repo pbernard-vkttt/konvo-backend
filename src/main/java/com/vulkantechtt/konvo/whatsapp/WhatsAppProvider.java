@@ -15,7 +15,14 @@ public interface WhatsAppProvider {
 
     SendResult sendText(SendTextCommand cmd);
 
-    boolean verifyWebhookSignature(String body, String signatureHeader);
+    /**
+     * HMAC-verify a webhook body against the channel's app secret. The
+     * channelId comes from the webhook URL path (the controller routes to
+     * {@code /api/webhooks/meta/{channelId}}). The raw byte body is passed
+     * (not a decoded string) because Meta's signature is computed over the
+     * exact bytes — a re-encode would shift the digest.
+     */
+    boolean verifyWebhookSignature(UUID channelId, byte[] rawBody, String signatureHeader);
 
     record SendTextCommand(
             UUID channelId,

@@ -2,11 +2,9 @@
 --
 -- pgcrypto       — provides gen_random_uuid() so we can default UUIDs in SQL
 --                  if a future migration prefers DB-side generation over Hibernate.
--- vector         — pgvector, used by the knowledge-base module (M5) for
---                  embedding similarity search.
 --
--- This migration is intentionally minimal: subsequent V00x__*.sql files in
--- each bounded context add the domain tables.
+-- pgvector (the `vector` extension) is added in the M5 knowledge-base
+-- migration where it is first needed. Keeping it out of V001 lets the app
+-- run against a stock Postgres in M1–M4 without requiring the extra package.
 
 create extension if not exists pgcrypto;
-create extension if not exists vector;

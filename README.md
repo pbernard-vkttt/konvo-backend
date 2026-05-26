@@ -6,8 +6,8 @@ This repo is one half of the system; see [`../konvo-frontend`](../konvo-frontend
 
 ## Stack
 
-- **Java 21**, Spring Boot 3.5.0 (plan targets 4.0.x; pinned to 3.5 until the surrounding ecosystem catches up — see comment in `build.gradle.kts`).
-- **Gradle Kotlin DSL** with the wrapper checked in.
+- **Java 21**, Spring Boot 4.0.6 (Jakarta EE 11 / Spring Framework 7 baseline).
+- **Gradle Kotlin DSL** with the wrapper checked in (8.14.4 — Boot 4 requires 8.14+).
 - **PostgreSQL 17 + pgvector**, **Flyway** migrations.
 - **RabbitMQ** for webhook ingestion, AI replies, outbound sends.
 - **Spring Security** with JWT (M2+).

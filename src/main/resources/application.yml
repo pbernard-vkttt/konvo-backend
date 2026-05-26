@@ -5,8 +5,8 @@ spring:
     active: ${SPRING_PROFILES_ACTIVE:dev}
   datasource:
     url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/konvo_db}
-    username: ${DATABASE_USERNAME:konvo}
-    password: ${DATABASE_PASSWORD:konvo}
+    username: ${DATABASE_USERNAME:postgres}
+    password: ${DATABASE_PASSWORD:passwrd}
     hikari:
       maximum-pool-size: 10
       minimum-idle: 2
@@ -25,8 +25,9 @@ spring:
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}
-    username: ${RABBITMQ_USERNAME:konvo}
-    password: ${RABBITMQ_PASSWORD:konvo}
+    username: ${RABBITMQ_USERNAME:konvo_mq}
+    password: ${RABBITMQ_PASSWORD:Konvo2026!}
+    virtual-host: /
 
 server:
   port: ${SERVER_PORT:8080}
@@ -47,6 +48,9 @@ management:
         enabled: true
       show-details: when_authorized
   health:
+    # M3 lights up the webhook ingest + outbound send queues; rabbit health
+    # is back in the picture. Local dev needs a running RabbitMQ (see
+    # infra/README.md → "Running without Docker").
     rabbit:
       enabled: true
     db:

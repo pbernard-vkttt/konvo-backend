@@ -1,32 +1,49 @@
 package com.vulkantechtt.konvo;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
-import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
-import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.TestPropertySource;
+import org.springframework.context.ApplicationContext;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.utility.DockerImageName;
 
 /**
- * Smoke test: confirms the Spring context loads with the M1 bean graph.
- * Disables datasource/JPA/Flyway/RabbitMQ auto-config so the test runs in CI
- * without external services. The integration test suite (M2+) will use
- * Testcontainers to spin up the real dependencies.
+ * Smoke test: confirms the Spring context loads against a real Postgres
+ * (pgvector image) and that Flyway successfully applies all migrations.
+ * RabbitMQ remains autoconfig-excluded — the messaging layer is exercised
+ * by its own slice tests as M3+ adds queues.
  */
 @SpringBootTest(classes = KonvoCrmApplication.class)
 @EnableAutoConfiguration(exclude = {
-        DataSourceAutoConfiguration.class,
-        HibernateJpaAutoConfiguration.class
+        org.springframework.boot.amqp.autoconfigure.RabbitAutoConfiguration.class
 })
-@TestPropertySource(properties = {
-        "spring.flyway.enabled=false",
-        "spring.autoconfigure.exclude=" +
-                "org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration," +
-                "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration," +
-                "org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration",
-        "spring.jpa.repositories.enabled=false"
-})
+@ActiveProfiles("test")
+@Testcontainers
 class KonvoCrmApplicationTests {
+
+    @Container
+    static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(
+            DockerImageName.parse("pgvector/pgvector:pg17")
+                    .asCompatibleSubstituteFor("postgres"))
+            .withDatabaseName("konvo_test")
+            .withUsername("konvo")
+            .withPassword("konvo");
+
+    @DynamicPropertySource
+    static void datasourceProps(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", postgres::getJdbcUrl);
+        registry.add("spring.datasource.username", postgres::getUsername);
+        registry.add("spring.datasource.password", postgres::getPassword);
+    }
+
+    @Autowired
+    ApplicationContext context;
 
     @Test
     void contextLoads() {

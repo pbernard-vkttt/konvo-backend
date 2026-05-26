@@ -1,6 +1,6 @@
 plugins {
     java
-    id("org.springframework.boot") version "3.5.0"
+    id("org.springframework.boot") version "4.0.6"
     id("io.spring.dependency-management") version "1.1.7"
 }
 
@@ -17,21 +17,17 @@ repositories {
     mavenCentral()
 }
 
-// NOTE: The implementation plan targets Spring Boot 4.0.x. At scaffold time we
-// pin to Spring Boot 3.5.0 because the 4.x line was still stabilising and
-// several core libraries we depend on (Flyway, springdoc-openapi) had not yet
-// shipped Boot-4-compatible releases. Bump the plugin version above once the
-// ecosystem catches up — the package layout and code are written to be
-// forward-compatible.
-
 dependencies {
-    implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springframework.boot:spring-boot-starter-amqp")
 
+    // Boot 4 split FlywayAutoConfiguration into its own module — without
+    // this the spring.flyway.* properties are ignored and migrations never run.
+    implementation("org.springframework.boot:spring-boot-flyway")
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-database-postgresql")
     implementation("org.postgresql:postgresql")
