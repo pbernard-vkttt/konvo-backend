@@ -1,0 +1,10 @@
+spring:
+  jpa:
+    show-sql: false
+  flyway:
+    out-of-order: false
+
+logging:
+  level:
+    root: INFO
+    com.vulkantechtt.konvo: INFO

@@ -1,0 +1,109 @@
+spring:
+  application:
+    name: konvo-backend
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/konvo_db}
+    username: ${DATABASE_USERNAME:konvo}
+    password: ${DATABASE_PASSWORD:konvo}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc.time_zone: UTC
+        format_sql: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:konvo}
+    password: ${RABBITMQ_PASSWORD:konvo}
+
+server:
+  port: ${SERVER_PORT:8080}
+  forward-headers-strategy: framework
+  error:
+    include-message: always
+    include-binding-errors: always
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when_authorized
+  health:
+    rabbit:
+      enabled: true
+    db:
+      enabled: true
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: ${spring.application.name}
+    description: Konvo CRM API
+    version: '@project.version@'
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+
+konvo:
+  security:
+    jwt:
+      signing-secret: ${JWT_SIGNING_SECRET:dev-only-do-not-use-in-production-change-me-please-32+chars}
+      access-token-ttl-minutes: 15
+      refresh-token-ttl-days: 30
+    token-encryption-key: ${TOKEN_ENCRYPTION_KEY:ZGV2LW9ubHktMzItYnl0ZS1iYXNlNjQta2V5LXBsYWNlaG9sZGVy}
+  public-base-url:
+    app: ${APP_PUBLIC_BASE_URL:http://localhost:4200}
+    api: ${API_PUBLIC_BASE_URL:http://localhost:8080}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200}
+  ai:
+    default-provider: ${AI_DEFAULT_PROVIDER:stub}
+    groq:
+      api-key: ${GROQ_API_KEY:}
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+  whatsapp:
+    provider: ${WHATSAPP_PROVIDER:stub}
+    meta:
+      app-id: ${META_APP_ID:}
+      app-secret: ${META_APP_SECRET:}
+      verify-token: ${META_VERIFY_TOKEN:konvo-dev-verify}
+      webhook-secret: ${META_WEBHOOK_SECRET:}
+  storage:
+    provider: ${STORAGE_PROVIDER:local}
+    r2:
+      account-id: ${R2_ACCOUNT_ID:}
+      access-key-id: ${R2_ACCESS_KEY_ID:}
+      secret-access-key: ${R2_SECRET_ACCESS_KEY:}
+      bucket: ${R2_BUCKET:}
+      public-base-url: ${R2_PUBLIC_BASE_URL:}
+
+logging:
+  level:
+    root: INFO
+    com.vulkantechtt.konvo: DEBUG
+    org.springframework.web: INFO
