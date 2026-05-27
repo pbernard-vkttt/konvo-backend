@@ -9,6 +9,8 @@ import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * CRUD for knowledge sources. Creates persist the source as {@code indexing}
@@ -49,8 +51,21 @@ public class KnowledgeService {
         source.setCharCount(req.content().length());
         source.setCreatedByUserId(principal.userId());
         KnowledgeSource saved = sources.save(source);
-        indexer.indexAsync(saved.getId());
+        dispatchIndexAfterCommit(saved.getId());
         return toResponse(saved);
+    }
+
+    private void dispatchIndexAfterCommit(UUID sourceId) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            indexer.indexAsync(sourceId);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                indexer.indexAsync(sourceId);
+            }
+        });
     }
 
     @Transactional
