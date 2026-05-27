@@ -1,15 +1,19 @@
 package com.vulkantechtt.konvo.billing;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -22,11 +26,9 @@ class UsageServiceTest {
     @Test
     void overQuotaWhenAiRunsAtLimit() {
         UsageService usage = new UsageService(jdbc);
-        when(jdbc.queryForMap(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(Object[].class)))
-                .thenReturn(row(100, 200, 50_000));
 
         Subscription sub = subscription(planLimits(500, 200, 50_000));
-        boolean over = usage.isOverAiQuota(sub.getTenantId(), sub);
+        boolean over = usage.isOverAiQuota(new UsageService.Snapshot(100, 200, 50_000), sub.getPlan());
 
         assertThat(over).isTrue();
     }
@@ -34,28 +36,24 @@ class UsageServiceTest {
     @Test
     void overQuotaWhenTokensExceed() {
         UsageService usage = new UsageService(jdbc);
-        when(jdbc.queryForMap(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(Object[].class)))
-                .thenReturn(row(10, 50, 60_000));
 
         Subscription sub = subscription(planLimits(500, 200, 50_000));
-        assertThat(usage.isOverAiQuota(sub.getTenantId(), sub)).isTrue();
+        assertThat(usage.isOverAiQuota(new UsageService.Snapshot(10, 50, 60_000), sub.getPlan())).isTrue();
     }
 
     @Test
     void underQuota() {
         UsageService usage = new UsageService(jdbc);
-        when(jdbc.queryForMap(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(Object[].class)))
-                .thenReturn(row(10, 50, 1000));
 
         Subscription sub = subscription(planLimits(500, 200, 50_000));
-        assertThat(usage.isOverAiQuota(sub.getTenantId(), sub)).isFalse();
+        assertThat(usage.isOverAiQuota(new UsageService.Snapshot(10, 50, 1000), sub.getPlan())).isFalse();
     }
 
     @Test
     void snapshotReadsAllThreeCounters() {
         UsageService usage = new UsageService(jdbc);
-        when(jdbc.queryForMap(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(Object[].class)))
-                .thenReturn(row(12, 34, 5678));
+        when(jdbc.queryForObject(anyString(), eq(Long.class), any(), any(), any()))
+                .thenReturn(12L, 34L, 5678L);
 
         UsageService.Snapshot s = usage.snapshot(UUID.randomUUID(), Instant.now(), Instant.now());
         assertThat(s.messagesSent()).isEqualTo(12);
@@ -63,12 +61,20 @@ class UsageServiceTest {
         assertThat(s.aiTokens()).isEqualTo(5678);
     }
 
-    private static Map<String, Object> row(long msgs, long aiRuns, long aiTokens) {
-        Map<String, Object> r = new HashMap<>();
-        r.put("msgs", msgs);
-        r.put("ai_runs", aiRuns);
-        r.put("ai_tokens", aiTokens);
-        return r;
+    @Test
+    void messageCounterUsesSentAtTimestamp() {
+        UsageService usage = new UsageService(jdbc);
+        when(jdbc.queryForObject(anyString(), eq(Long.class), any(), any(), any()))
+                .thenReturn(0L, 0L, 0L);
+
+        usage.snapshot(UUID.randomUUID(), Instant.now(), Instant.now());
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        verify(jdbc, times(3)).queryForObject(sql.capture(), eq(Long.class), any(), any(), any());
+        assertThat(sql.getAllValues().get(0))
+                .contains("from messages")
+                .contains("sent_at")
+                .doesNotContain("created_at");
     }
 
     private static Plan planLimits(int msgs, int aiRuns, int aiTokens) {

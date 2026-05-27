@@ -43,6 +43,6 @@ public class BillingController {
                         plan.getKnowledgeSourcesLimit(),
                         plan.getMembersLimit()),
                 new BillingSnapshot.UsageSummary(s.messagesSent(), s.aiRuns(), s.aiTokens()),
-                usage.isOverAiQuota(principal.tenantId(), sub));
+                usage.isOverAiQuota(s, plan));
     }
 }

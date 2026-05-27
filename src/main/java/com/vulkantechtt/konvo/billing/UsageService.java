@@ -1,7 +1,6 @@
 package com.vulkantechtt.konvo.billing;
 
 import java.time.Instant;
-import java.util.Map;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -16,15 +15,29 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class UsageService {
 
-    private static final String SQL_USAGE = """
-            select
-              coalesce(sum(case when m.direction = 'outbound' then 1 else 0 end), 0) as msgs,
-              coalesce((select count(*) from ai_runs r
-                        where r.tenant_id = ? and r.created_at >= ? and r.created_at < ?), 0) as ai_runs,
-              coalesce((select sum(prompt_tokens + completion_tokens) from ai_runs r
-                        where r.tenant_id = ? and r.created_at >= ? and r.created_at < ?), 0) as ai_tokens
-            from messages m
-            where m.tenant_id = ? and m.created_at >= ? and m.created_at < ?
+    private static final String SQL_MESSAGES_SENT = """
+            select count(*)
+            from messages
+            where tenant_id = ?
+              and direction = 'outbound'
+              and sent_at >= ?
+              and sent_at < ?
+            """;
+
+    private static final String SQL_AI_RUNS = """
+            select count(*)
+            from ai_runs
+            where tenant_id = ?
+              and created_at >= ?
+              and created_at < ?
+            """;
+
+    private static final String SQL_AI_TOKENS = """
+            select coalesce(sum(prompt_tokens + completion_tokens), 0)
+            from ai_runs
+            where tenant_id = ?
+              and created_at >= ?
+              and created_at < ?
             """;
 
     private final JdbcTemplate jdbc;
@@ -35,13 +48,12 @@ public class UsageService {
 
     @Transactional(readOnly = true)
     public Snapshot snapshot(UUID tenantId, Instant periodStart, Instant periodEnd) {
-        Map<String, Object> row = jdbc.queryForMap(SQL_USAGE,
-                tenantId, periodStart, periodEnd,
-                tenantId, periodStart, periodEnd,
-                tenantId, periodStart, periodEnd);
-        long msgs    = asLong(row.get("msgs"));
-        long aiRuns  = asLong(row.get("ai_runs"));
-        long tokens  = asLong(row.get("ai_tokens"));
+        long msgs = asLong(jdbc.queryForObject(SQL_MESSAGES_SENT, Long.class,
+                tenantId, periodStart, periodEnd));
+        long aiRuns = asLong(jdbc.queryForObject(SQL_AI_RUNS, Long.class,
+                tenantId, periodStart, periodEnd));
+        long tokens = asLong(jdbc.queryForObject(SQL_AI_TOKENS, Long.class,
+                tenantId, periodStart, periodEnd));
         return new Snapshot(msgs, aiRuns, tokens);
     }
 
@@ -53,8 +65,10 @@ public class UsageService {
      */
     @Transactional(readOnly = true)
     public boolean isOverAiQuota(UUID tenantId, Subscription sub) {
-        Plan plan = sub.getPlan();
-        Snapshot s = snapshot(tenantId, sub.getPeriodStart(), sub.getPeriodEnd());
+        return isOverAiQuota(snapshot(tenantId, sub.getPeriodStart(), sub.getPeriodEnd()), sub.getPlan());
+    }
+
+    public boolean isOverAiQuota(Snapshot s, Plan plan) {
         return s.aiRuns() >= plan.getAiRunsMonthlyLimit()
                 || s.aiTokens() >= plan.getAiTokensMonthlyLimit();
     }
