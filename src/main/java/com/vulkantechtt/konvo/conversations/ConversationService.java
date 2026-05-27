@@ -63,10 +63,18 @@ public class ConversationService {
                 cu != null ? cu.getPhone() : null,
                 c.getStatus(),
                 c.getAssignedUserId(),
+                c.isAutoReplyEnabled(),
                 c.getLastMessageAt(),
                 c.getCreatedAt());
     }
 
+    @Transactional
+    public ConversationDetail setAutoReply(KonvoPrincipal principal, UUID id, boolean enabled) {
+        Conversation c = requireVisible(principal, id);
+        c.setAutoReplyEnabled(enabled);
+        conversations.save(c);
+        return get(principal, id);
+    }
 
     @Transactional
     public ConversationDetail updateStatus(KonvoPrincipal principal, UUID id, ConversationStatus newStatus) {

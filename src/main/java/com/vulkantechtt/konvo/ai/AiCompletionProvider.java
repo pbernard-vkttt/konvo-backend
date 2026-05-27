@@ -3,13 +3,14 @@ package com.vulkantechtt.konvo.ai;
 import java.util.List;
 
 /**
- * Provider-neutral interface for the AI model layer.
+ * Chat-completion side of the AI layer. Replaces the M1 {@code AiProvider}
+ * interface — the embedding side is split into {@link AiEmbeddingProvider}
+ * because some providers (Groq) don't ship embeddings.
  *
- * The plan calls for a router that picks a low-cost model by default and
- * escalates only when needed; that router (M5) sits in front of this
- * interface and chooses which AiProvider bean to call.
+ * Active implementation is chosen by {@code konvo.ai.default-provider} via
+ * {@code @ConditionalOnProperty}: stub | openai | groq.
  */
-public interface AiProvider {
+public interface AiCompletionProvider {
 
     String name();
 

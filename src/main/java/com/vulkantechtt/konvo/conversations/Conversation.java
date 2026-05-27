@@ -35,6 +35,8 @@ public class Conversation extends BaseEntity {
     @Column(name = "assigned_user_id")
     private UUID assignedUserId;
 
+    @Column(name = "auto_reply_enabled", nullable = false)
+    private boolean autoReplyEnabled = false;
 
     public UUID getTenantId() { return tenantId; }
     public void setTenantId(UUID tenantId) { this.tenantId = tenantId; }
@@ -57,4 +59,6 @@ public class Conversation extends BaseEntity {
     public UUID getAssignedUserId() { return assignedUserId; }
     public void setAssignedUserId(UUID assignedUserId) { this.assignedUserId = assignedUserId; }
 
+    public boolean isAutoReplyEnabled() { return autoReplyEnabled; }
+    public void setAutoReplyEnabled(boolean autoReplyEnabled) { this.autoReplyEnabled = autoReplyEnabled; }
 }

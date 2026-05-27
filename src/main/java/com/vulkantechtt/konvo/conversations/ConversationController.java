@@ -2,6 +2,7 @@ package com.vulkantechtt.konvo.conversations;
 
 import com.vulkantechtt.konvo.common.PageResponse;
 import com.vulkantechtt.konvo.conversations.dto.AssignRequest;
+import com.vulkantechtt.konvo.conversations.dto.AutoReplyRequest;
 import com.vulkantechtt.konvo.conversations.dto.ConversationDetail;
 import com.vulkantechtt.konvo.conversations.dto.ConversationSummary;
 import com.vulkantechtt.konvo.conversations.dto.UpdateStatusRequest;
@@ -62,4 +63,11 @@ public class ConversationController {
         return service.assign(principal, id, req.assignedUserId());
     }
 
+    @PatchMapping("/{id}/auto-reply")
+    public ConversationDetail autoReply(
+            @AuthenticationPrincipal KonvoPrincipal principal,
+            @PathVariable UUID id,
+            @RequestBody AutoReplyRequest req) {
+        return service.setAutoReply(principal, id, req.enabled());
+    }
 }

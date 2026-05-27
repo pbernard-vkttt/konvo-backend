@@ -14,6 +14,7 @@ public record ConversationDetail(
         String customerPhone,
         ConversationStatus status,
         UUID assignedUserId,
+        boolean autoReplyEnabled,
         Instant lastMessageAt,
         Instant createdAt) {
 }
