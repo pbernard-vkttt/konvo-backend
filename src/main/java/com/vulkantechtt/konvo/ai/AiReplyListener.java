@@ -41,6 +41,8 @@ public class AiReplyListener {
     private final TenantRepository tenants;
     private final OutboundMessageDispatcher dispatcher;
     private final AiRunRecorder runs;
+    private final com.vulkantechtt.konvo.billing.SubscriptionService subscriptions;
+    private final com.vulkantechtt.konvo.billing.UsageService usage;
 
     public AiReplyListener(
             AiCompletionProvider completion,
@@ -49,7 +51,9 @@ public class AiReplyListener {
             CustomerRepository customers,
             TenantRepository tenants,
             OutboundMessageDispatcher dispatcher,
-            AiRunRecorder runs) {
+            AiRunRecorder runs,
+            com.vulkantechtt.konvo.billing.SubscriptionService subscriptions,
+            com.vulkantechtt.konvo.billing.UsageService usage) {
         this.completion = completion;
         this.retriever = retriever;
         this.conversations = conversations;
@@ -57,6 +61,8 @@ public class AiReplyListener {
         this.tenants = tenants;
         this.dispatcher = dispatcher;
         this.runs = runs;
+        this.subscriptions = subscriptions;
+        this.usage = usage;
     }
 
     @RabbitListener(queues = RabbitConfig.AI_REPLY_QUEUE)
@@ -69,6 +75,21 @@ public class AiReplyListener {
         if (!conv.isAutoReplyEnabled()) {
             log.debug("Auto-reply disabled mid-flight for conversation {}", conv.getId());
             return;
+        }
+        try {
+            var sub = subscriptions.activeFor(cmd.tenantId());
+            if (usage.isOverAiQuota(cmd.tenantId(), sub)) {
+                log.warn("AI auto-reply skipped — tenant {} over plan {} quota",
+                        cmd.tenantId(), sub.getPlan().getId());
+                runs.recordFailure(cmd.tenantId(), cmd.conversationId(), "reply",
+                        completion.name(), "n/a", 0, "Plan quota exceeded");
+                return;
+            }
+        } catch (RuntimeException e) {
+            // No subscription row — should never happen post-V006 backfill, but
+            // don't 500 the listener over it; treat as "no limits, proceed".
+            log.warn("Could not resolve subscription for tenant {} — proceeding without quota check: {}",
+                    cmd.tenantId(), e.toString());
         }
         Customer customer = customers.findById(cmd.customerId()).orElse(null);
         if (customer == null) {

@@ -53,6 +53,7 @@ public class AuthService {
     private final RefreshTokenService refreshTokens;
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
+    private final com.vulkantechtt.konvo.billing.SubscriptionService subscriptions;
 
     public AuthService(
             UserRepository userRepository,
@@ -62,7 +63,8 @@ public class AuthService {
             PasswordResetTokenRepository passwordResetRepository,
             RefreshTokenService refreshTokens,
             JwtService jwtService,
-            PasswordEncoder passwordEncoder) {
+            PasswordEncoder passwordEncoder,
+            com.vulkantechtt.konvo.billing.SubscriptionService subscriptions) {
         this.userRepository = userRepository;
         this.tenantRepository = tenantRepository;
         this.membershipRepository = membershipRepository;
@@ -71,6 +73,7 @@ public class AuthService {
         this.refreshTokens = refreshTokens;
         this.jwtService = jwtService;
         this.passwordEncoder = passwordEncoder;
+        this.subscriptions = subscriptions;
     }
 
     @Transactional
@@ -160,6 +163,7 @@ public class AuthService {
         tenant.setName(req.workspaceName());
         tenant.setSlug(slug);
         tenant = tenantRepository.save(tenant);
+        subscriptions.provisionFreePlan(tenant.getId());
 
         User user = new User();
         user.setEmail(req.email().toLowerCase());

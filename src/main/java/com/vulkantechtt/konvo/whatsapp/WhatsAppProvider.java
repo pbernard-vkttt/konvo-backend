@@ -1,11 +1,12 @@
 package com.vulkantechtt.konvo.whatsapp;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
  * Provider-neutral abstraction for the WhatsApp channel.
  *
- * MVP only implements Meta Cloud API directly, but the interface lets a BSP
+ * MVP implements Meta Cloud API directly, but the interface lets a BSP
  * (Twilio, 360dialog, etc.) drop in later without disturbing the inbox or AI
  * code paths. The plan calls this out explicitly in §1 (WhatsApp).
  */
@@ -14,6 +15,15 @@ public interface WhatsAppProvider {
     String name();
 
     SendResult sendText(SendTextCommand cmd);
+
+    /** Send a pre-approved Meta template. Used to reach a customer outside
+     *  the 24-hour customer-service window. */
+    SendResult sendTemplate(SendTemplateCommand cmd);
+
+    /** List the WhatsApp message templates Meta knows about for this
+     *  channel's WABA. Stub returns an empty list — Meta is the only
+     *  provider that can answer meaningfully. */
+    List<TemplateSummary> listTemplates(UUID channelId);
 
     /**
      * HMAC-verify a webhook body against the channel's app secret. The
@@ -30,5 +40,22 @@ public interface WhatsAppProvider {
             String body,
             String replyToProviderMessageId) {}
 
+    record SendTemplateCommand(
+            UUID channelId,
+            String toPhoneE164,
+            String templateName,
+            String language,
+            List<String> bodyParameters) {}
+
     record SendResult(String providerMessageId, String status) {}
+
+    /** What we surface from Meta's template list so the sync service can
+     *  upsert without caring about JSON shape. */
+    record TemplateSummary(
+            String metaId,
+            String name,
+            String language,
+            String category,
+            String status,
+            String componentsJson) {}
 }
