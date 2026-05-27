@@ -12,6 +12,7 @@ import com.vulkantechtt.konvo.conversations.MessageRepository;
 import com.vulkantechtt.konvo.conversations.MessageStatus;
 import com.vulkantechtt.konvo.customers.Customer;
 import com.vulkantechtt.konvo.customers.CustomerRepository;
+import com.vulkantechtt.konvo.realtime.SseHub;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
@@ -42,18 +43,21 @@ public class InboundIngestListener {
     private final ConversationRepository conversations;
     private final MessageRepository messages;
     private final ObjectMapper json;
+    private final SseHub sseHub;
 
     public InboundIngestListener(
             ChannelRepository channels,
             CustomerRepository customers,
             ConversationRepository conversations,
             MessageRepository messages,
-            ObjectMapper json) {
+            ObjectMapper json,
+            SseHub sseHub) {
         this.channels = channels;
         this.customers = customers;
         this.conversations = conversations;
         this.messages = messages;
         this.json = json;
+        this.sseHub = sseHub;
     }
 
     @RabbitListener(queues = RabbitConfig.WEBHOOK_QUEUE)
@@ -140,6 +144,15 @@ public class InboundIngestListener {
 
             log.info("Inbound message persisted channel={} conversation={} wamid={}",
                     channel.getId(), conversation.getId(), in.id());
+
+            // Push to any open inbox EventSource. We deliberately broadcast
+            // after-the-fact (not inside the transaction) because there's no
+            // useful retry if a subscriber missed the event.
+            sseHub.broadcast(channel.getTenantId(), "message_appended",
+                    java.util.Map.of("conversationId", conversation.getId().toString(),
+                            "messageId", m.getId().toString()));
+            sseHub.broadcast(channel.getTenantId(), "conversation_updated",
+                    java.util.Map.of("conversationId", conversation.getId().toString()));
         }
     }
 

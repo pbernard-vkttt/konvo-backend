@@ -1,6 +1,7 @@
 package com.vulkantechtt.konvo.conversations;
 
 import com.vulkantechtt.konvo.config.RabbitConfig;
+import com.vulkantechtt.konvo.realtime.SseHub;
 import com.vulkantechtt.konvo.whatsapp.WhatsAppProvider;
 import java.time.Instant;
 import org.slf4j.Logger;
@@ -22,13 +23,16 @@ public class OutboundSendListener {
     private final WhatsAppProvider provider;
     private final MessageRepository messages;
     private final ConversationRepository conversations;
+    private final SseHub sseHub;
 
     public OutboundSendListener(WhatsAppProvider provider,
                                 MessageRepository messages,
-                                ConversationRepository conversations) {
+                                ConversationRepository conversations,
+                                SseHub sseHub) {
         this.provider = provider;
         this.messages = messages;
         this.conversations = conversations;
+        this.sseHub = sseHub;
     }
 
     @RabbitListener(queues = RabbitConfig.OUTBOUND_SEND_QUEUE)
@@ -61,5 +65,11 @@ public class OutboundSendListener {
                     ? cmd.body().substring(0, 280) : cmd.body());
             conversations.save(conv);
         });
+
+        sseHub.broadcast(cmd.tenantId(), "message_appended",
+                java.util.Map.of("conversationId", cmd.conversationId().toString(),
+                        "messageId", msg.getId().toString()));
+        sseHub.broadcast(cmd.tenantId(), "conversation_updated",
+                java.util.Map.of("conversationId", cmd.conversationId().toString()));
     }
 }

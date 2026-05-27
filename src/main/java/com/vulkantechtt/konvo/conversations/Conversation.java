@@ -32,6 +32,10 @@ public class Conversation extends BaseEntity {
     @Column(name = "last_message_preview", length = 280)
     private String lastMessagePreview;
 
+    @Column(name = "assigned_user_id")
+    private UUID assignedUserId;
+
+
     public UUID getTenantId() { return tenantId; }
     public void setTenantId(UUID tenantId) { this.tenantId = tenantId; }
 
@@ -49,4 +53,8 @@ public class Conversation extends BaseEntity {
 
     public String getLastMessagePreview() { return lastMessagePreview; }
     public void setLastMessagePreview(String lastMessagePreview) { this.lastMessagePreview = lastMessagePreview; }
+
+    public UUID getAssignedUserId() { return assignedUserId; }
+    public void setAssignedUserId(UUID assignedUserId) { this.assignedUserId = assignedUserId; }
+
 }

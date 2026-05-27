@@ -51,7 +51,8 @@ public class SecurityConfig {
                                 "/api/v1/auth/password/forgot",
                                 "/api/v1/auth/password/reset",
                                 "/api/v1/auth/invitations/accept",
-                                "/api/v1/auth/invitations/*/preview"
+                                "/api/v1/auth/invitations/*/preview",
+                                "/api/v1/realtime/stream"
                         ).permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
