@@ -12,7 +12,10 @@ RUN chmod +x gradlew && ./gradlew --no-daemon bootJar
 FROM eclipse-temurin:21-jre-alpine
 ENV SPRING_PROFILES_ACTIVE=prod
 WORKDIR /app
-RUN addgroup -S konvo && adduser -S konvo -G konvo
+RUN addgroup -S konvo \
+    && adduser -S konvo -G konvo \
+    && mkdir -p /app/var/storage \
+    && chown -R konvo:konvo /app/var
 COPY --from=build /workspace/build/libs/konvo-backend.jar /app/konvo-backend.jar
 USER konvo
 EXPOSE 8080
