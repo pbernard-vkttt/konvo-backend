@@ -8,6 +8,8 @@ import com.vulkantechtt.konvo.conversations.dto.ConversationDetail;
 import com.vulkantechtt.konvo.conversations.dto.ConversationSummary;
 import com.vulkantechtt.konvo.customers.Customer;
 import com.vulkantechtt.konvo.customers.CustomerRepository;
+import com.vulkantechtt.konvo.notifications.NotificationService;
+import com.vulkantechtt.konvo.notifications.NotificationType;
 import com.vulkantechtt.konvo.security.KonvoPrincipal;
 import com.vulkantechtt.konvo.users.Role;
 import java.util.UUID;
@@ -28,13 +30,16 @@ public class ConversationService {
     private final ConversationRepository conversations;
     private final CustomerRepository customers;
     private final ChannelRepository channels;
+    private final NotificationService notifications;
 
     public ConversationService(ConversationRepository conversations,
                                CustomerRepository customers,
-                               ChannelRepository channels) {
+                               ChannelRepository channels,
+                               NotificationService notifications) {
         this.conversations = conversations;
         this.customers = customers;
         this.channels = channels;
+        this.notifications = notifications;
     }
 
     @Transactional(readOnly = true)
@@ -92,8 +97,20 @@ public class ConversationService {
                 && !sees(principal, Role.OWNER, Role.ADMIN)) {
             throw KonvoException.forbidden("Only owners and admins can assign other agents");
         }
+        UUID previous = c.getAssignedUserId();
         c.setAssignedUserId(assigneeUserId);
         conversations.save(c);
+        if (assigneeUserId != null
+                && !assigneeUserId.equals(previous)
+                && !assigneeUserId.equals(principal.userId())) {
+            Customer cu = customers.findById(c.getCustomerId()).orElse(null);
+            String who = cu != null ? displayNameOf(cu) : "a customer";
+            notifications.notifyUser(principal.tenantId(), assigneeUserId,
+                    NotificationType.CONVERSATION_ASSIGNED,
+                    "Conversation assigned to you",
+                    "From " + who + " — assigned by " + principal.fullName(),
+                    "/app/inbox?conversation=" + c.getId());
+        }
         return get(principal, id);
     }
 

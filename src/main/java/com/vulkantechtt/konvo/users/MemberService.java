@@ -1,9 +1,12 @@
 package com.vulkantechtt.konvo.users;
 
+import com.vulkantechtt.konvo.audit.AuditAction;
+import com.vulkantechtt.konvo.audit.AuditService;
 import com.vulkantechtt.konvo.auth.TokenHasher;
 import com.vulkantechtt.konvo.auth.UserInvitation;
 import com.vulkantechtt.konvo.auth.UserInvitationRepository;
 import com.vulkantechtt.konvo.common.KonvoException;
+import com.vulkantechtt.konvo.security.KonvoPrincipal;
 import com.vulkantechtt.konvo.users.dto.InvitationResponse;
 import com.vulkantechtt.konvo.users.dto.InviteMemberRequest;
 import com.vulkantechtt.konvo.users.dto.MemberResponse;
@@ -28,14 +31,17 @@ public class MemberService {
     private final TenantMembershipRepository memberships;
     private final UserInvitationRepository invitations;
     private final UserRepository users;
+    private final AuditService audit;
 
     public MemberService(
             TenantMembershipRepository memberships,
             UserInvitationRepository invitations,
-            UserRepository users) {
+            UserRepository users,
+            AuditService audit) {
         this.memberships = memberships;
         this.invitations = invitations;
         this.users = users;
+        this.audit = audit;
     }
 
     @Transactional(readOnly = true)
@@ -67,7 +73,9 @@ public class MemberService {
     }
 
     @Transactional
-    public InvitationResponse invite(UUID tenantId, UUID invitedByUserId, InviteMemberRequest req) {
+    public InvitationResponse invite(KonvoPrincipal actor, InviteMemberRequest req) {
+        UUID tenantId = actor.tenantId();
+        UUID invitedByUserId = actor.userId();
         String email = req.email().toLowerCase();
         users.findByEmailIgnoreCase(email)
                 .flatMap(u -> memberships.findByTenantIdAndUserId(tenantId, u.getId()))
@@ -89,6 +97,9 @@ public class MemberService {
         inv.setInvitedByUserId(invitedByUserId);
         inv.setExpiresAt(Instant.now().plus(INVITATION_TTL));
         UserInvitation saved = invitations.save(inv);
+        audit.record(actor, AuditAction.MEMBER_INVITED, saved.getId(),
+                "Invited " + email + " as " + req.role().name().toLowerCase(),
+                java.util.Map.of("email", email, "role", req.role().name()));
         return new InvitationResponse(
                 saved.getId(),
                 saved.getEmail(),
@@ -99,7 +110,8 @@ public class MemberService {
     }
 
     @Transactional
-    public void revokeInvitation(UUID tenantId, UUID invitationId) {
+    public void revokeInvitation(KonvoPrincipal actor, UUID invitationId) {
+        UUID tenantId = actor.tenantId();
         UserInvitation inv = invitations.findById(invitationId)
                 .orElseThrow(() -> KonvoException.notFound("Invitation", invitationId));
         if (!inv.getTenantId().equals(tenantId)) {
@@ -107,10 +119,15 @@ public class MemberService {
         }
         inv.setRevokedAt(Instant.now());
         invitations.save(inv);
+        audit.record(actor, AuditAction.MEMBER_INVITATION_REVOKED, inv.getId(),
+                "Revoked invite for " + inv.getEmail(),
+                java.util.Map.of("email", inv.getEmail()));
     }
 
     @Transactional
-    public MemberResponse changeRole(UUID tenantId, UUID membershipId, Role newRole, UUID actingUserId) {
+    public MemberResponse changeRole(KonvoPrincipal actor, UUID membershipId, Role newRole) {
+        UUID tenantId = actor.tenantId();
+        UUID actingUserId = actor.userId();
         TenantMembership target = memberships.findById(membershipId)
                 .orElseThrow(() -> KonvoException.notFound("Member", membershipId));
         if (!target.getTenant().getId().equals(tenantId)) {
@@ -121,13 +138,21 @@ public class MemberService {
             // Same guard, friendlier message for the "demoting yourself" case.
             throw KonvoException.badRequest("You can't change your own owner role — promote another owner first");
         }
+        Role oldRole = target.getRole();
         target.setRole(newRole);
         TenantMembership saved = memberships.save(target);
+        audit.record(actor, AuditAction.MEMBER_ROLE_CHANGED, saved.getId(),
+                saved.getUser().getEmail() + " role changed from "
+                        + oldRole.name().toLowerCase() + " to " + newRole.name().toLowerCase(),
+                java.util.Map.of("email", saved.getUser().getEmail(),
+                        "from", oldRole.name(), "to", newRole.name()));
         return toResponse(saved);
     }
 
     @Transactional
-    public void remove(UUID tenantId, UUID membershipId, UUID actingUserId) {
+    public void remove(KonvoPrincipal actor, UUID membershipId) {
+        UUID tenantId = actor.tenantId();
+        UUID actingUserId = actor.userId();
         TenantMembership target = memberships.findById(membershipId)
                 .orElseThrow(() -> KonvoException.notFound("Member", membershipId));
         if (!target.getTenant().getId().equals(tenantId)) {
@@ -139,6 +164,10 @@ public class MemberService {
         guardLastOwnerInvariant(tenantId, target, target.getRole(), /*removal*/ true);
         target.setStatus(MembershipStatus.disabled);
         memberships.save(target);
+        audit.record(actor, AuditAction.MEMBER_REMOVED, target.getId(),
+                "Removed " + target.getUser().getEmail() + " from workspace",
+                java.util.Map.of("email", target.getUser().getEmail(),
+                        "role", target.getRole().name()));
     }
 
     private void guardLastOwnerInvariant(UUID tenantId, TenantMembership target, Role newRole, boolean removal) {

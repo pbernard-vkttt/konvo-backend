@@ -43,6 +43,16 @@ public class AiReplyListener {
     private final AiRunRecorder runs;
     private final com.vulkantechtt.konvo.billing.SubscriptionService subscriptions;
     private final com.vulkantechtt.konvo.billing.UsageService usage;
+    private final com.vulkantechtt.konvo.notifications.NotificationService notifications;
+
+    /**
+     * Per-tenant guard so the quota-paused notification fires once per
+     * listener-process lifetime per tenant, not once per dropped message.
+     * Reset on bounce (acceptable — a real "Vee paused" notification daily
+     * is the worst case if a tenant stays over quota across restarts).
+     */
+    private final java.util.Set<java.util.UUID> notifiedOverQuotaTenants =
+            java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     public AiReplyListener(
             AiCompletionProvider completion,
@@ -53,7 +63,8 @@ public class AiReplyListener {
             OutboundMessageDispatcher dispatcher,
             AiRunRecorder runs,
             com.vulkantechtt.konvo.billing.SubscriptionService subscriptions,
-            com.vulkantechtt.konvo.billing.UsageService usage) {
+            com.vulkantechtt.konvo.billing.UsageService usage,
+            com.vulkantechtt.konvo.notifications.NotificationService notifications) {
         this.completion = completion;
         this.retriever = retriever;
         this.conversations = conversations;
@@ -63,6 +74,7 @@ public class AiReplyListener {
         this.runs = runs;
         this.subscriptions = subscriptions;
         this.usage = usage;
+        this.notifications = notifications;
     }
 
     @RabbitListener(queues = RabbitConfig.AI_REPLY_QUEUE)
@@ -83,6 +95,13 @@ public class AiReplyListener {
                         cmd.tenantId(), sub.getPlan().getId());
                 runs.recordFailure(cmd.tenantId(), cmd.conversationId(), "reply",
                         completion.name(), "n/a", 0, "Plan quota exceeded");
+                if (notifiedOverQuotaTenants.add(cmd.tenantId())) {
+                    notifications.broadcastToOwnersAndAdmins(cmd.tenantId(),
+                            com.vulkantechtt.konvo.notifications.NotificationType.AI_QUOTA_PAUSED,
+                            "Vee paused for this billing period",
+                            "Your " + sub.getPlan().getName() + " plan quota was reached. Upgrade to resume auto-replies.",
+                            "/app/settings/billing");
+                }
                 return;
             }
         } catch (RuntimeException e) {

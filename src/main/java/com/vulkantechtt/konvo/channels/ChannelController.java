@@ -47,7 +47,7 @@ public class ChannelController {
     @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
     public ChannelResponse connectWhatsApp(@AuthenticationPrincipal KonvoPrincipal principal,
                                            @Valid @RequestBody ConnectWhatsAppRequest req) {
-        return channels.connectWhatsApp(principal.tenantId(), req);
+        return channels.connectWhatsApp(principal, req);
     }
 
     @PatchMapping("/{id}")
@@ -55,7 +55,7 @@ public class ChannelController {
     public ChannelResponse update(@AuthenticationPrincipal KonvoPrincipal principal,
                                   @PathVariable UUID id,
                                   @Valid @RequestBody UpdateChannelRequest req) {
-        return channels.update(principal.tenantId(), id, req);
+        return channels.update(principal, id, req);
     }
 
     @DeleteMapping("/{id}")
@@ -63,6 +63,6 @@ public class ChannelController {
     @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
     public void disconnect(@AuthenticationPrincipal KonvoPrincipal principal,
                            @PathVariable UUID id) {
-        channels.disconnect(principal.tenantId(), id);
+        channels.disconnect(principal, id);
     }
 }

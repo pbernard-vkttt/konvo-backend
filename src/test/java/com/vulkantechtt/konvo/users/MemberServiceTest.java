@@ -7,8 +7,10 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.vulkantechtt.konvo.audit.AuditService;
 import com.vulkantechtt.konvo.auth.UserInvitationRepository;
 import com.vulkantechtt.konvo.common.KonvoException;
+import com.vulkantechtt.konvo.security.KonvoPrincipal;
 import com.vulkantechtt.konvo.tenants.Tenant;
 import java.util.Optional;
 import java.util.UUID;
@@ -24,6 +26,7 @@ class MemberServiceTest {
     @Mock TenantMembershipRepository memberships;
     @Mock UserInvitationRepository invitations;
     @Mock UserRepository users;
+    @Mock AuditService audit;
 
     @InjectMocks MemberService service;
 
@@ -38,7 +41,7 @@ class MemberServiceTest {
         when(memberships.countByTenantIdAndRoleAndStatus(tenantId, Role.OWNER, MembershipStatus.active))
                 .thenReturn(1L);
 
-        assertThatThrownBy(() -> service.changeRole(tenantId, membershipId, Role.ADMIN, UUID.randomUUID()))
+        assertThatThrownBy(() -> service.changeRole(principal(UUID.randomUUID(), Role.OWNER), membershipId, Role.ADMIN))
                 .isInstanceOf(KonvoException.class)
                 .hasMessageContaining("at least one owner");
         verify(memberships, never()).save(any());
@@ -54,7 +57,7 @@ class MemberServiceTest {
         when(memberships.countByTenantIdAndRoleAndStatus(tenantId, Role.OWNER, MembershipStatus.active))
                 .thenReturn(1L);
 
-        assertThatThrownBy(() -> service.remove(tenantId, membershipId, UUID.randomUUID()))
+        assertThatThrownBy(() -> service.remove(principal(UUID.randomUUID(), Role.OWNER), membershipId))
                 .isInstanceOf(KonvoException.class)
                 .hasMessageContaining("at least one owner");
     }
@@ -67,7 +70,7 @@ class MemberServiceTest {
 
         when(memberships.findById(membershipId)).thenReturn(Optional.of(me));
 
-        assertThatThrownBy(() -> service.remove(tenantId, membershipId, actingId))
+        assertThatThrownBy(() -> service.remove(principal(actingId, Role.ADMIN), membershipId))
                 .isInstanceOf(KonvoException.class)
                 .hasMessageContaining("can't remove yourself");
     }
@@ -79,9 +82,13 @@ class MemberServiceTest {
 
         when(memberships.findById(membershipId)).thenReturn(Optional.of(foreign));
 
-        assertThatThrownBy(() -> service.changeRole(tenantId, membershipId, Role.ADMIN, UUID.randomUUID()))
+        assertThatThrownBy(() -> service.changeRole(principal(UUID.randomUUID(), Role.OWNER), membershipId, Role.ADMIN))
                 .isInstanceOf(KonvoException.class);
         verify(memberships, never()).countByTenantIdAndRoleAndStatus(eq(tenantId), any(), any());
+    }
+
+    private KonvoPrincipal principal(UUID userId, Role role) {
+        return new KonvoPrincipal(userId, "actor@x.tt", "Actor", tenantId, role);
     }
 
     private static TenantMembership membership(UUID tenantId, UUID userId, Role role) {

@@ -1,5 +1,7 @@
 package com.vulkantechtt.konvo.templates;
 
+import com.vulkantechtt.konvo.audit.AuditAction;
+import com.vulkantechtt.konvo.audit.AuditService;
 import com.vulkantechtt.konvo.channels.Channel;
 import com.vulkantechtt.konvo.channels.ChannelRepository;
 import com.vulkantechtt.konvo.common.KonvoException;
@@ -46,6 +48,7 @@ public class TemplateService {
     private final MessageRepository messages;
     private final WhatsAppProvider provider;
     private final SseHub sseHub;
+    private final AuditService audit;
 
     public TemplateService(
             MessageTemplateRepository templates,
@@ -54,7 +57,8 @@ public class TemplateService {
             CustomerRepository customers,
             MessageRepository messages,
             WhatsAppProvider provider,
-            SseHub sseHub) {
+            SseHub sseHub,
+            AuditService audit) {
         this.templates = templates;
         this.channels = channels;
         this.conversations = conversations;
@@ -62,6 +66,7 @@ public class TemplateService {
         this.messages = messages;
         this.provider = provider;
         this.sseHub = sseHub;
+        this.audit = audit;
     }
 
     @Transactional(readOnly = true)
@@ -104,6 +109,9 @@ public class TemplateService {
             }
         }
         log.info("Synced {} templates for tenant {}", total, principal.tenantId());
+        audit.record(principal, AuditAction.TEMPLATE_SYNCED, null,
+                "Synced " + total + " templates from Meta",
+                java.util.Map.of("count", total, "channels", tenantChannels.size()));
         return total;
     }
 
@@ -153,6 +161,11 @@ public class TemplateService {
             sseHub.broadcast(principal.tenantId(), "conversation_updated",
                     java.util.Map.of("conversationId", target.conversation.getId().toString()));
         }
+        audit.record(principal, AuditAction.TEMPLATE_SENT, template.getId(),
+                "Sent template " + template.getName() + " to " + target.phone,
+                java.util.Map.of("template", template.getName(),
+                        "language", req.language(),
+                        "to", target.phone));
         return toResponse(template);
     }
 

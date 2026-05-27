@@ -49,7 +49,7 @@ public class MemberController {
     public InvitationResponse invite(
             @AuthenticationPrincipal KonvoPrincipal principal,
             @Valid @RequestBody InviteMemberRequest req) {
-        return memberService.invite(principal.tenantId(), principal.userId(), req);
+        return memberService.invite(principal, req);
     }
 
     @DeleteMapping("/invitations/{id}")
@@ -58,7 +58,7 @@ public class MemberController {
     public void revokeInvitation(
             @AuthenticationPrincipal KonvoPrincipal principal,
             @PathVariable UUID id) {
-        memberService.revokeInvitation(principal.tenantId(), id);
+        memberService.revokeInvitation(principal, id);
     }
 
     @PatchMapping("/{id}/role")
@@ -67,7 +67,7 @@ public class MemberController {
             @AuthenticationPrincipal KonvoPrincipal principal,
             @PathVariable UUID id,
             @Valid @RequestBody ChangeRoleRequest req) {
-        return memberService.changeRole(principal.tenantId(), id, req.role(), principal.userId());
+        return memberService.changeRole(principal, id, req.role());
     }
 
     @DeleteMapping("/{id}")
@@ -76,6 +76,6 @@ public class MemberController {
     public void remove(
             @AuthenticationPrincipal KonvoPrincipal principal,
             @PathVariable UUID id) {
-        memberService.remove(principal.tenantId(), id, principal.userId());
+        memberService.remove(principal, id);
     }
 }

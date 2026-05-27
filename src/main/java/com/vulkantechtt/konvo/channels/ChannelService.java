@@ -1,10 +1,13 @@
 package com.vulkantechtt.konvo.channels;
 
+import com.vulkantechtt.konvo.audit.AuditAction;
+import com.vulkantechtt.konvo.audit.AuditService;
 import com.vulkantechtt.konvo.auth.TokenHasher;
 import com.vulkantechtt.konvo.channels.dto.ChannelResponse;
 import com.vulkantechtt.konvo.channels.dto.ConnectWhatsAppRequest;
 import com.vulkantechtt.konvo.channels.dto.UpdateChannelRequest;
 import com.vulkantechtt.konvo.common.KonvoException;
+import com.vulkantechtt.konvo.security.KonvoPrincipal;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,11 +26,14 @@ import org.springframework.transaction.annotation.Transactional;
 public class ChannelService {
 
     private final ChannelRepository channels;
+    private final AuditService audit;
     private final String apiBaseUrl;
 
     public ChannelService(ChannelRepository channels,
+                          AuditService audit,
                           @Value("${konvo.public-base-url.api}") String apiBaseUrl) {
         this.channels = channels;
+        this.audit = audit;
         this.apiBaseUrl = trimTrailingSlash(apiBaseUrl);
     }
 
@@ -43,7 +49,8 @@ public class ChannelService {
     }
 
     @Transactional
-    public ChannelResponse connectWhatsApp(UUID tenantId, ConnectWhatsAppRequest req) {
+    public ChannelResponse connectWhatsApp(KonvoPrincipal actor, ConnectWhatsAppRequest req) {
+        UUID tenantId = actor.tenantId();
         if (channels.existsByTenantIdAndProvider(tenantId, ChannelProvider.whatsapp_meta)) {
             throw KonvoException.conflict("This workspace already has a WhatsApp channel connected");
         }
@@ -62,12 +69,20 @@ public class ChannelService {
         ch.setAccessToken(req.accessToken());
         ch.setWebhookVerifyToken(TokenHasher.randomToken());
         ch.setStatus(ChannelStatus.connected);
-        return toResponse(channels.save(ch));
+        Channel saved = channels.save(ch);
+        audit.record(actor, AuditAction.CHANNEL_CONNECTED, saved.getId(),
+                "Connected WhatsApp channel " + saved.getDisplayName(),
+                java.util.Map.of("displayName", saved.getDisplayName(),
+                        "phoneNumber", saved.getPhoneNumber(),
+                        "wabaId", saved.getWabaId() == null ? "" : saved.getWabaId()));
+        return toResponse(saved);
     }
 
     @Transactional
-    public ChannelResponse update(UUID tenantId, UUID id, UpdateChannelRequest req) {
+    public ChannelResponse update(KonvoPrincipal actor, UUID id, UpdateChannelRequest req) {
+        UUID tenantId = actor.tenantId();
         Channel ch = requireOwned(tenantId, id);
+        String previousName = ch.getDisplayName();
         ch.setDisplayName(req.displayName());
         if (req.accessToken() != null && !req.accessToken().isBlank()) {
             ch.setAccessToken(req.accessToken());
@@ -75,13 +90,21 @@ public class ChannelService {
         if (req.appSecret() != null && !req.appSecret().isBlank()) {
             ch.setAppSecret(req.appSecret());
         }
-        return toResponse(channels.save(ch));
+        Channel saved = channels.save(ch);
+        audit.record(actor, AuditAction.CHANNEL_UPDATED, saved.getId(),
+                "Updated channel " + saved.getDisplayName(),
+                java.util.Map.of("from", previousName, "to", saved.getDisplayName()));
+        return toResponse(saved);
     }
 
     @Transactional
-    public void disconnect(UUID tenantId, UUID id) {
+    public void disconnect(KonvoPrincipal actor, UUID id) {
+        UUID tenantId = actor.tenantId();
         Channel ch = requireOwned(tenantId, id);
         channels.delete(ch);
+        audit.record(actor, AuditAction.CHANNEL_DISCONNECTED, ch.getId(),
+                "Disconnected channel " + ch.getDisplayName(),
+                java.util.Map.of("displayName", ch.getDisplayName()));
     }
 
     private Channel requireOwned(UUID tenantId, UUID id) {

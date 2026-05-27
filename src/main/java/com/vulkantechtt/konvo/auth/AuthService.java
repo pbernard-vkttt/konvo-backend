@@ -8,7 +8,11 @@ import com.vulkantechtt.konvo.auth.dto.InvitationPreviewResponse;
 import com.vulkantechtt.konvo.auth.dto.LoginRequest;
 import com.vulkantechtt.konvo.auth.dto.RegisterOwnerRequest;
 import com.vulkantechtt.konvo.auth.dto.ResetPasswordRequest;
+import com.vulkantechtt.konvo.audit.AuditAction;
+import com.vulkantechtt.konvo.audit.AuditService;
 import com.vulkantechtt.konvo.common.KonvoException;
+import com.vulkantechtt.konvo.notifications.NotificationService;
+import com.vulkantechtt.konvo.notifications.NotificationType;
 import com.vulkantechtt.konvo.tenants.Tenant;
 import com.vulkantechtt.konvo.tenants.TenantRepository;
 import com.vulkantechtt.konvo.users.MembershipStatus;
@@ -54,6 +58,8 @@ public class AuthService {
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
     private final com.vulkantechtt.konvo.billing.SubscriptionService subscriptions;
+    private final AuditService audit;
+    private final NotificationService notifications;
 
     public AuthService(
             UserRepository userRepository,
@@ -64,7 +70,9 @@ public class AuthService {
             RefreshTokenService refreshTokens,
             JwtService jwtService,
             PasswordEncoder passwordEncoder,
-            com.vulkantechtt.konvo.billing.SubscriptionService subscriptions) {
+            com.vulkantechtt.konvo.billing.SubscriptionService subscriptions,
+            AuditService audit,
+            NotificationService notifications) {
         this.userRepository = userRepository;
         this.tenantRepository = tenantRepository;
         this.membershipRepository = membershipRepository;
@@ -74,6 +82,8 @@ public class AuthService {
         this.jwtService = jwtService;
         this.passwordEncoder = passwordEncoder;
         this.subscriptions = subscriptions;
+        this.audit = audit;
+        this.notifications = notifications;
     }
 
     @Transactional
@@ -163,7 +173,11 @@ public class AuthService {
         tenant.setName(req.workspaceName());
         tenant.setSlug(slug);
         tenant = tenantRepository.save(tenant);
-        subscriptions.provisionFreePlan(tenant.getId());
+        var sub = subscriptions.provisionFreePlan(tenant.getId());
+        audit.recordSystem(tenant.getId(), AuditAction.SUBSCRIPTION_PROVISIONED, sub.getId(),
+                "Workspace created on the Free plan", java.util.Map.of(
+                        "plan", sub.getPlan().getId(),
+                        "workspaceSlug", slug));
 
         User user = new User();
         user.setEmail(req.email().toLowerCase());
@@ -263,6 +277,15 @@ public class AuthService {
 
         invitation.setAcceptedAt(now);
         invitationRepository.save(invitation);
+
+        audit.recordSystem(tenant.getId(), AuditAction.MEMBER_JOINED, membership.getId(),
+                user.getEmail() + " joined as " + membership.getRole().name().toLowerCase(),
+                java.util.Map.of("email", user.getEmail(), "role", membership.getRole().name()));
+        notifications.broadcastToOwnersAndAdmins(tenant.getId(),
+                NotificationType.MEMBER_JOINED,
+                "New teammate joined",
+                user.getFullName() + " accepted the invite (" + membership.getRole().name().toLowerCase() + ")",
+                "/app/settings/team");
 
         return buildSession(user, membership, http);
     }

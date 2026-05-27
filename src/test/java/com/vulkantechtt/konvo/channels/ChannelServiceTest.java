@@ -7,8 +7,11 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.vulkantechtt.konvo.audit.AuditService;
 import com.vulkantechtt.konvo.channels.dto.ConnectWhatsAppRequest;
 import com.vulkantechtt.konvo.common.KonvoException;
+import com.vulkantechtt.konvo.security.KonvoPrincipal;
+import com.vulkantechtt.konvo.users.Role;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,11 +24,16 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class ChannelServiceTest {
 
     @Mock ChannelRepository channels;
+    @Mock AuditService audit;
     private ChannelService service;
 
     @BeforeEach
     void setUp() {
-        service = new ChannelService(channels, "http://api.test");
+        service = new ChannelService(channels, audit, "http://api.test");
+    }
+
+    private static KonvoPrincipal principal(UUID tenantId) {
+        return new KonvoPrincipal(UUID.randomUUID(), "actor@x.tt", "Actor", tenantId, Role.OWNER);
     }
 
     @Test
@@ -34,7 +42,7 @@ class ChannelServiceTest {
         when(channels.existsByTenantIdAndProvider(tenantId, ChannelProvider.whatsapp_meta))
                 .thenReturn(true);
 
-        assertThatThrownBy(() -> service.connectWhatsApp(tenantId, sampleRequest()))
+        assertThatThrownBy(() -> service.connectWhatsApp(principal(tenantId), sampleRequest()))
                 .isInstanceOf(KonvoException.class)
                 .hasMessageContaining("already has a WhatsApp channel");
         verify(channels, never()).save(any());
@@ -50,7 +58,7 @@ class ChannelServiceTest {
         when(channels.findByPhoneNumberId("12345"))
                 .thenReturn(Optional.of(existing));
 
-        assertThatThrownBy(() -> service.connectWhatsApp(tenantId, sampleRequest()))
+        assertThatThrownBy(() -> service.connectWhatsApp(principal(tenantId), sampleRequest()))
                 .isInstanceOf(KonvoException.class)
                 .hasMessageContaining("connected to another workspace");
     }

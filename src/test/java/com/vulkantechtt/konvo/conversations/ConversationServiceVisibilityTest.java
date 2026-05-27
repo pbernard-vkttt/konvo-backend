@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 import com.vulkantechtt.konvo.channels.ChannelRepository;
 import com.vulkantechtt.konvo.common.KonvoException;
 import com.vulkantechtt.konvo.customers.CustomerRepository;
+import com.vulkantechtt.konvo.notifications.NotificationService;
 import com.vulkantechtt.konvo.security.KonvoPrincipal;
 import com.vulkantechtt.konvo.users.Role;
 import java.util.Optional;
@@ -23,6 +24,7 @@ class ConversationServiceVisibilityTest {
     @Mock ConversationRepository conversations;
     @Mock CustomerRepository customers;
     @Mock ChannelRepository channels;
+    @Mock NotificationService notifications;
 
     @InjectMocks ConversationService service;
 
