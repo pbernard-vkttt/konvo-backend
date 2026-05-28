@@ -1,8 +1,12 @@
 package com.vulkantechtt.konvo.billing;
 
+import java.sql.Types;
 import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.SqlParameterValue;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,12 +52,14 @@ public class UsageService {
 
     @Transactional(readOnly = true)
     public Snapshot snapshot(UUID tenantId, Instant periodStart, Instant periodEnd) {
+        SqlParameterValue start = timestampParam(periodStart);
+        SqlParameterValue end = timestampParam(periodEnd);
         long msgs = asLong(jdbc.queryForObject(SQL_MESSAGES_SENT, Long.class,
-                tenantId, periodStart, periodEnd));
+                tenantId, start, end));
         long aiRuns = asLong(jdbc.queryForObject(SQL_AI_RUNS, Long.class,
-                tenantId, periodStart, periodEnd));
+                tenantId, start, end));
         long tokens = asLong(jdbc.queryForObject(SQL_AI_TOKENS, Long.class,
-                tenantId, periodStart, periodEnd));
+                tenantId, start, end));
         return new Snapshot(msgs, aiRuns, tokens);
     }
 
@@ -75,6 +81,12 @@ public class UsageService {
 
     private static long asLong(Object o) {
         return o == null ? 0 : ((Number) o).longValue();
+    }
+
+    private static SqlParameterValue timestampParam(Instant value) {
+        return new SqlParameterValue(
+                Types.TIMESTAMP_WITH_TIMEZONE,
+                OffsetDateTime.ofInstant(value, ZoneOffset.UTC));
     }
 
     public record Snapshot(long messagesSent, long aiRuns, long aiTokens) {}
