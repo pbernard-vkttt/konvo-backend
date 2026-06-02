@@ -10,6 +10,7 @@ konvo:
       access-token-ttl-minutes: 15
       refresh-token-ttl-days: 30
       refresh-cookie-secure: false
+    crypto-key: dGVzdC1vbmx5LWtvbnZvLWFlczI1Ni1rZXktMDAwMDE=
   ai:
     default-provider: stub
   whatsapp:

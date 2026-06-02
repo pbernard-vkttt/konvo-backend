@@ -28,6 +28,17 @@ spring:
     username: ${RABBITMQ_USERNAME:konvo_mq}
     password: ${RABBITMQ_PASSWORD:Konvo2026!}
     virtual-host: /
+  data:
+    redis:
+      # Spring Data Redis auto-config only attaches when host is set; the
+      # default dev/native run keeps using the in-memory SSE hub + ticket
+      # store. Production sets REDIS_HOST so KONVO_REALTIME_BUS=redis works.
+      host: ${REDIS_HOST:}
+      port: ${REDIS_PORT:6379}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          enabled: true
 
 server:
   port: ${SERVER_PORT:8080}
@@ -78,7 +89,11 @@ konvo:
       signing-secret: ${JWT_SIGNING_SECRET:dev-only-do-not-use-in-production-change-me-please-32+chars}
       access-token-ttl-minutes: 15
       refresh-token-ttl-days: 30
-    token-encryption-key: ${TOKEN_ENCRYPTION_KEY:ZGV2LW9ubHktMzItYnl0ZS1iYXNlNjQta2V5LXBsYWNlaG9sZGVy}
+    # AES-256-GCM key used by EncryptedStringConverter for channel secrets
+    # (channels.app_secret, channels.access_token). Generate one with:
+    #   openssl rand -base64 32
+    # Dev-only 32-byte AES key. Production MUST override via KONVO_CRYPTO_KEY.
+    crypto-key: ${KONVO_CRYPTO_KEY:ZGV2LW9ubHkta29udm8tYWVzLTI1Ni1rZXktMDAwMDE=}
   public-base-url:
     app: ${APP_PUBLIC_BASE_URL:http://localhost:4200}
     api: ${API_PUBLIC_BASE_URL:http://localhost:8080}
@@ -90,6 +105,15 @@ konvo:
       api-key: ${GROQ_API_KEY:}
     openai:
       api-key: ${OPENAI_API_KEY:}
+  realtime:
+    # `local` keeps M4's in-memory fan-out (single-pod). `redis` switches the
+    # SSE hub + ticket store to Redis pub/sub for multi-pod deploys (M8).
+    bus: ${KONVO_REALTIME_BUS:local}
+  email:
+    provider: ${KONVO_EMAIL_PROVIDER:stub}
+    from: ${KONVO_EMAIL_FROM:no-reply@konvo.tt}
+  auth:
+    dev-token-in-response: ${KONVO_AUTH_DEV_TOKEN_IN_RESPONSE:false}
   whatsapp:
     provider: ${WHATSAPP_PROVIDER:stub}
     meta:

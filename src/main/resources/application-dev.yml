@@ -4,3 +4,7 @@ spring:
     properties:
       hibernate:
         format_sql: true
+
+konvo:
+  auth:
+    dev-token-in-response: true

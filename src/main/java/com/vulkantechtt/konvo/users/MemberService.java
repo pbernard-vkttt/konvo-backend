@@ -6,7 +6,11 @@ import com.vulkantechtt.konvo.auth.TokenHasher;
 import com.vulkantechtt.konvo.auth.UserInvitation;
 import com.vulkantechtt.konvo.auth.UserInvitationRepository;
 import com.vulkantechtt.konvo.common.KonvoException;
+import com.vulkantechtt.konvo.common.SafeText;
+import com.vulkantechtt.konvo.email.EmailSender;
 import com.vulkantechtt.konvo.security.KonvoPrincipal;
+import com.vulkantechtt.konvo.tenants.Tenant;
+import com.vulkantechtt.konvo.tenants.TenantRepository;
 import com.vulkantechtt.konvo.users.dto.InvitationResponse;
 import com.vulkantechtt.konvo.users.dto.InviteMemberRequest;
 import com.vulkantechtt.konvo.users.dto.MemberResponse;
@@ -31,17 +35,31 @@ public class MemberService {
     private final TenantMembershipRepository memberships;
     private final UserInvitationRepository invitations;
     private final UserRepository users;
+    private final TenantRepository tenants;
     private final AuditService audit;
+    private final EmailSender email;
+    private final String appBaseUrl;
+    private final boolean devTokenInResponse;
 
     public MemberService(
             TenantMembershipRepository memberships,
             UserInvitationRepository invitations,
             UserRepository users,
-            AuditService audit) {
+            TenantRepository tenants,
+            AuditService audit,
+            EmailSender email,
+            @org.springframework.beans.factory.annotation.Value("${konvo.public-base-url.app}") String appBaseUrl,
+            @org.springframework.beans.factory.annotation.Value("${konvo.auth.dev-token-in-response:false}") boolean devTokenInResponse) {
         this.memberships = memberships;
         this.invitations = invitations;
         this.users = users;
+        this.tenants = tenants;
         this.audit = audit;
+        this.email = email;
+        this.devTokenInResponse = devTokenInResponse;
+        this.appBaseUrl = appBaseUrl == null || appBaseUrl.isBlank()
+                ? "http://localhost:4200"
+                : appBaseUrl.replaceAll("/$", "");
     }
 
     @Transactional(readOnly = true)
@@ -100,13 +118,14 @@ public class MemberService {
         audit.record(actor, AuditAction.MEMBER_INVITED, saved.getId(),
                 "Invited " + email + " as " + req.role().name().toLowerCase(),
                 java.util.Map.of("email", email, "role", req.role().name()));
+        sendInvitationEmail(actor, email, req.role().name().toLowerCase(), raw, tenantId);
         return new InvitationResponse(
                 saved.getId(),
                 saved.getEmail(),
                 saved.getRole(),
                 saved.getExpiresAt(),
                 saved.getCreatedAt(),
-                raw);
+                devTokenInResponse ? raw : null);
     }
 
     @Transactional
@@ -182,6 +201,33 @@ public class MemberService {
         if (activeOwners <= 1) {
             throw KonvoException.badRequest("A workspace must keep at least one owner");
         }
+    }
+
+    private void sendInvitationEmail(KonvoPrincipal actor, String toEmail, String role,
+                                     String rawToken, UUID tenantId) {
+        String tenantName = tenants.findById(tenantId)
+                .map(Tenant::getName)
+                .orElse("your workspace");
+        tenantName = SafeText.singleLine(tenantName, "your workspace", 160);
+        String inviterName = SafeText.singleLine(actor.fullName(), "A teammate", 160);
+        String inviterEmail = SafeText.singleLine(actor.email(), "someone on your team", 160);
+        String link = appBaseUrl + "/invitations/" + rawToken;
+        this.email.send(new EmailSender.EmailMessage(
+                toEmail,
+                toEmail,
+                "Join " + tenantName + " on Konvo",
+                """
+                Hi,
+
+                %s (%s) invited you to join %s on Konvo as a %s.
+
+                Click the link below to set up your account — the invite
+                is good for 7 days.
+
+                %s
+
+                — The Konvo team
+                """.formatted(inviterName, inviterEmail, tenantName, role, link)));
     }
 
     private MemberResponse toResponse(TenantMembership m) {

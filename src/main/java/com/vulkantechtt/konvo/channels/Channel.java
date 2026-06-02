@@ -1,7 +1,9 @@
 package com.vulkantechtt.konvo.channels;
 
 import com.vulkantechtt.konvo.common.BaseEntity;
+import com.vulkantechtt.konvo.security.crypto.EncryptedStringConverter;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -35,9 +37,11 @@ public class Channel extends BaseEntity {
     @Column(name = "waba_id", length = 64)
     private String wabaId;
 
-    @Column(name = "app_secret", length = 255)
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(name = "app_secret", columnDefinition = "text")
     private String appSecret;
 
+    @Convert(converter = EncryptedStringConverter.class)
     @Column(name = "access_token", columnDefinition = "text")
     private String accessToken;
 

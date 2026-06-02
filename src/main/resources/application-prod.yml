@@ -1,8 +1,51 @@
 spring:
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
   jpa:
     show-sql: false
   flyway:
     out-of-order: false
+  rabbitmq:
+    host: ${RABBITMQ_HOST}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME}
+    password: ${RABBITMQ_PASSWORD}
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+  mail:
+    host: ${SMTP_HOST}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME}
+    password: ${SMTP_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+konvo:
+  security:
+    jwt:
+      signing-secret: ${JWT_SIGNING_SECRET}
+      refresh-cookie-secure: true
+    crypto-key: ${KONVO_CRYPTO_KEY}
+  public-base-url:
+    app: ${APP_PUBLIC_BASE_URL}
+    api: ${API_PUBLIC_BASE_URL}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS}
+  realtime:
+    bus: ${KONVO_REALTIME_BUS:redis}
+  email:
+    provider: ${KONVO_EMAIL_PROVIDER:smtp}
+    from: ${KONVO_EMAIL_FROM}
+  auth:
+    dev-token-in-response: false
 
 logging:
   level:

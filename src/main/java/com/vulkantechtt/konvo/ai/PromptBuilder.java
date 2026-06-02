@@ -1,5 +1,6 @@
 package com.vulkantechtt.konvo.ai;
 
+import com.vulkantechtt.konvo.common.SafeText;
 import com.vulkantechtt.konvo.knowledge.KnowledgeRetriever;
 import java.util.List;
 
@@ -21,7 +22,7 @@ public final class PromptBuilder {
 
     public static String systemPrompt(String workspaceName, List<KnowledgeRetriever.Hit> hits) {
         StringBuilder sb = new StringBuilder();
-        sb.append(PERSONA.formatted(workspaceName == null ? "this workspace" : workspaceName).strip())
+        sb.append(PERSONA.formatted(SafeText.singleLine(workspaceName, "this workspace", 160)).strip())
                 .append("\n\n");
         if (hits.isEmpty()) {
             sb.append("CONTEXT: (no knowledge base entries found for this query)");

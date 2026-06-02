@@ -1,5 +1,6 @@
 package com.vulkantechtt.konvo.notifications;
 
+import com.vulkantechtt.konvo.common.AfterCommit;
 import com.vulkantechtt.konvo.notifications.dto.NotificationFeed;
 import com.vulkantechtt.konvo.notifications.dto.NotificationResponse;
 import com.vulkantechtt.konvo.realtime.SseHub;
@@ -46,11 +47,11 @@ public class NotificationService {
         n.setBody(body);
         n.setLink(link);
         Notification saved = notifications.save(n);
-        sseHub.broadcast(tenantId, "notification", Map.of(
+        AfterCommit.run(() -> sseHub.broadcast(tenantId, "notification", Map.of(
                 "userId", userId.toString(),
                 "id", saved.getId().toString(),
                 "type", saved.getType(),
-                "title", saved.getTitle()));
+                "title", saved.getTitle())));
         return saved;
     }
 

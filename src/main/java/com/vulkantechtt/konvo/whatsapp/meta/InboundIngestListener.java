@@ -2,6 +2,7 @@ package com.vulkantechtt.konvo.whatsapp.meta;
 
 import com.vulkantechtt.konvo.channels.Channel;
 import com.vulkantechtt.konvo.channels.ChannelRepository;
+import com.vulkantechtt.konvo.common.AfterCommit;
 import com.vulkantechtt.konvo.config.RabbitConfig;
 import com.vulkantechtt.konvo.conversations.Conversation;
 import com.vulkantechtt.konvo.conversations.ConversationRepository;
@@ -17,6 +18,7 @@ import com.vulkantechtt.konvo.realtime.SseHub;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -150,27 +152,32 @@ public class InboundIngestListener {
             log.info("Inbound message persisted channel={} conversation={} wamid={}",
                     channel.getId(), conversation.getId(), in.id());
 
-            // Push to any open inbox EventSource. We deliberately broadcast
-            // after-the-fact (not inside the transaction) because there's no
-            // useful retry if a subscriber missed the event.
-            sseHub.broadcast(channel.getTenantId(), "message_appended",
-                    java.util.Map.of("conversationId", conversation.getId().toString(),
-                            "messageId", m.getId().toString()));
-            sseHub.broadcast(channel.getTenantId(), "conversation_updated",
-                    java.util.Map.of("conversationId", conversation.getId().toString()));
+            UUID tenantId = channel.getTenantId();
+            UUID conversationId = conversation.getId();
+            UUID messageId = m.getId();
+            UUID channelId = channel.getId();
+            UUID customerId = customer.getId();
+            boolean autoReplyEnabled = conversation.isAutoReplyEnabled();
+            AfterCommit.run(() -> {
+                sseHub.broadcast(tenantId, "message_appended",
+                        java.util.Map.of("conversationId", conversationId.toString(),
+                                "messageId", messageId.toString()));
+                sseHub.broadcast(tenantId, "conversation_updated",
+                        java.util.Map.of("conversationId", conversationId.toString()));
 
-            if (conversation.isAutoReplyEnabled()) {
-                rabbit.convertAndSend(
-                        RabbitConfig.EVENTS_EXCHANGE,
-                        "ai.reply.inbound",
-                        new AiReplyCommand(
-                                channel.getTenantId(),
-                                conversation.getId(),
-                                channel.getId(),
-                                customer.getId(),
-                                m.getId(),
-                                body));
-            }
+                if (autoReplyEnabled) {
+                    rabbit.convertAndSend(
+                            RabbitConfig.EVENTS_EXCHANGE,
+                            "ai.reply.inbound",
+                            new AiReplyCommand(
+                                    tenantId,
+                                    conversationId,
+                                    channelId,
+                                    customerId,
+                                    messageId,
+                                    body));
+                }
+            });
         }
     }
 

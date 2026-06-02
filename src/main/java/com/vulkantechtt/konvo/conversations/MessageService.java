@@ -1,5 +1,6 @@
 package com.vulkantechtt.konvo.conversations;
 
+import com.vulkantechtt.konvo.common.AfterCommit;
 import com.vulkantechtt.konvo.common.KonvoException;
 import com.vulkantechtt.konvo.common.PageResponse;
 import com.vulkantechtt.konvo.conversations.dto.MessageResponse;
@@ -80,15 +81,21 @@ public class MessageService {
         }
         conversations.save(conv);
 
-        dispatcher.enqueue(new OutboundMessageCommand(
-                conv.getTenantId(), conv.getId(), conv.getChannelId(),
-                customer.getId(), customer.getPhone(), req.body()));
-
-        sseHub.broadcast(conv.getTenantId(), "message_appended",
-                java.util.Map.of("conversationId", conv.getId().toString(),
-                        "messageId", msg.getId().toString()));
-        sseHub.broadcast(conv.getTenantId(), "conversation_updated",
-                java.util.Map.of("conversationId", conv.getId().toString()));
+        UUID tenantId = conv.getTenantId();
+        UUID messageId = msg.getId();
+        UUID channelId = conv.getChannelId();
+        UUID customerId = customer.getId();
+        String phone = customer.getPhone();
+        String body = req.body();
+        AfterCommit.run(() -> {
+            dispatcher.enqueue(new OutboundMessageCommand(
+                    messageId, tenantId, conversationId, channelId, customerId, phone, body));
+            sseHub.broadcast(tenantId, "message_appended",
+                    java.util.Map.of("conversationId", conversationId.toString(),
+                            "messageId", messageId.toString()));
+            sseHub.broadcast(tenantId, "conversation_updated",
+                    java.util.Map.of("conversationId", conversationId.toString()));
+        });
 
         return toResponse(msg);
     }

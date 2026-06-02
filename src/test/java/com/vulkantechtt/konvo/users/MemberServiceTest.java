@@ -10,13 +10,15 @@ import static org.mockito.Mockito.when;
 import com.vulkantechtt.konvo.audit.AuditService;
 import com.vulkantechtt.konvo.auth.UserInvitationRepository;
 import com.vulkantechtt.konvo.common.KonvoException;
+import com.vulkantechtt.konvo.email.EmailSender;
 import com.vulkantechtt.konvo.security.KonvoPrincipal;
 import com.vulkantechtt.konvo.tenants.Tenant;
+import com.vulkantechtt.konvo.tenants.TenantRepository;
 import java.util.Optional;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -26,11 +28,26 @@ class MemberServiceTest {
     @Mock TenantMembershipRepository memberships;
     @Mock UserInvitationRepository invitations;
     @Mock UserRepository users;
+    @Mock TenantRepository tenants;
     @Mock AuditService audit;
+    @Mock EmailSender email;
 
-    @InjectMocks MemberService service;
+    MemberService service;
 
     private final UUID tenantId = UUID.randomUUID();
+
+    @BeforeEach
+    void setUp() {
+        service = new MemberService(
+                memberships,
+                invitations,
+                users,
+                tenants,
+                audit,
+                email,
+                "http://app.test",
+                false);
+    }
 
     @Test
     void cannotDemoteLastOwner() {

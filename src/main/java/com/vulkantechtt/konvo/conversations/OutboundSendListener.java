@@ -1,5 +1,6 @@
 package com.vulkantechtt.konvo.conversations;
 
+import com.vulkantechtt.konvo.common.AfterCommit;
 import com.vulkantechtt.konvo.config.RabbitConfig;
 import com.vulkantechtt.konvo.realtime.SseHub;
 import com.vulkantechtt.konvo.whatsapp.WhatsAppProvider;
@@ -38,13 +39,7 @@ public class OutboundSendListener {
     @RabbitListener(queues = RabbitConfig.OUTBOUND_SEND_QUEUE)
     @Transactional
     public void onOutbound(OutboundMessageCommand cmd) {
-        Message msg = new Message();
-        msg.setTenantId(cmd.tenantId());
-        msg.setConversationId(cmd.conversationId());
-        msg.setDirection(MessageDirection.outbound);
-        msg.setContentType("text");
-        msg.setBody(cmd.body());
-        msg.setSentAt(Instant.now());
+        Message msg = resolveMessage(cmd);
 
         try {
             WhatsAppProvider.SendResult result = provider.sendText(new WhatsAppProvider.SendTextCommand(
@@ -66,10 +61,31 @@ public class OutboundSendListener {
             conversations.save(conv);
         });
 
-        sseHub.broadcast(cmd.tenantId(), "message_appended",
-                java.util.Map.of("conversationId", cmd.conversationId().toString(),
-                        "messageId", msg.getId().toString()));
-        sseHub.broadcast(cmd.tenantId(), "conversation_updated",
-                java.util.Map.of("conversationId", cmd.conversationId().toString()));
+        AfterCommit.run(() -> {
+            sseHub.broadcast(cmd.tenantId(), "message_appended",
+                    java.util.Map.of("conversationId", cmd.conversationId().toString(),
+                            "messageId", msg.getId().toString()));
+            sseHub.broadcast(cmd.tenantId(), "conversation_updated",
+                    java.util.Map.of("conversationId", cmd.conversationId().toString()));
+        });
+    }
+
+    private Message resolveMessage(OutboundMessageCommand cmd) {
+        if (cmd.messageId() != null) {
+            Message existing = messages.findById(cmd.messageId()).orElse(null);
+            if (existing != null && existing.getTenantId().equals(cmd.tenantId())) {
+                return existing;
+            }
+            log.warn("Outbound command referenced missing message={} tenant={}; creating a new row",
+                    cmd.messageId(), cmd.tenantId());
+        }
+        Message msg = new Message();
+        msg.setTenantId(cmd.tenantId());
+        msg.setConversationId(cmd.conversationId());
+        msg.setDirection(MessageDirection.outbound);
+        msg.setContentType("text");
+        msg.setBody(cmd.body());
+        msg.setSentAt(Instant.now());
+        return msg;
     }
 }

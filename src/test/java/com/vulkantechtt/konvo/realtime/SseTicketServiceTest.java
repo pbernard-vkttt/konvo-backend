@@ -6,10 +6,20 @@ import com.vulkantechtt.konvo.security.KonvoPrincipal;
 import com.vulkantechtt.konvo.users.Role;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 class SseTicketServiceTest {
 
-    private final SseTicketService service = new SseTicketService();
+    /** No Redis bean — service falls back to the in-memory map. */
+    private static final ObjectProvider<StringRedisTemplate> NO_REDIS = new ObjectProvider<>() {
+        @Override public StringRedisTemplate getObject(Object... args) { return null; }
+        @Override public StringRedisTemplate getObject() { return null; }
+        @Override public StringRedisTemplate getIfAvailable() { return null; }
+        @Override public StringRedisTemplate getIfUnique() { return null; }
+    };
+
+    private final SseTicketService service = new SseTicketService(NO_REDIS);
 
     @Test
     void issuedTicketRedeemsOnceWithMatchingTenant() {

@@ -11,6 +11,8 @@ import com.vulkantechtt.konvo.auth.dto.ResetPasswordRequest;
 import com.vulkantechtt.konvo.audit.AuditAction;
 import com.vulkantechtt.konvo.audit.AuditService;
 import com.vulkantechtt.konvo.common.KonvoException;
+import com.vulkantechtt.konvo.common.SafeText;
+import com.vulkantechtt.konvo.email.EmailSender;
 import com.vulkantechtt.konvo.notifications.NotificationService;
 import com.vulkantechtt.konvo.notifications.NotificationType;
 import com.vulkantechtt.konvo.tenants.Tenant;
@@ -60,6 +62,8 @@ public class AuthService {
     private final com.vulkantechtt.konvo.billing.SubscriptionService subscriptions;
     private final AuditService audit;
     private final NotificationService notifications;
+    private final EmailSender email;
+    private final String appBaseUrl;
 
     public AuthService(
             UserRepository userRepository,
@@ -72,7 +76,9 @@ public class AuthService {
             PasswordEncoder passwordEncoder,
             com.vulkantechtt.konvo.billing.SubscriptionService subscriptions,
             AuditService audit,
-            NotificationService notifications) {
+            NotificationService notifications,
+            EmailSender email,
+            @org.springframework.beans.factory.annotation.Value("${konvo.public-base-url.app}") String appBaseUrl) {
         this.userRepository = userRepository;
         this.tenantRepository = tenantRepository;
         this.membershipRepository = membershipRepository;
@@ -84,6 +90,10 @@ public class AuthService {
         this.subscriptions = subscriptions;
         this.audit = audit;
         this.notifications = notifications;
+        this.email = email;
+        this.appBaseUrl = appBaseUrl == null || appBaseUrl.isBlank()
+                ? "http://localhost:4200"
+                : appBaseUrl.replaceAll("/$", "");
     }
 
     @Transactional
@@ -210,9 +220,25 @@ public class AuthService {
         token.setTokenHash(TokenHasher.hash(raw));
         token.setExpiresAt(Instant.now().plus(PASSWORD_RESET_TTL));
         passwordResetRepository.save(token);
-        // In M2 we surface the raw token in the API response only on the
-        // dev profile; production swaps this for an email send (M5/M6).
         log.info("Password reset token issued for user {}", user.get().getId());
+        String resetLink = appBaseUrl + "/reset-password?token=" + raw;
+        String fullName = SafeText.singleLine(user.get().getFullName(), "there", 160);
+        this.email.send(new EmailSender.EmailMessage(
+                user.get().getEmail(),
+                fullName,
+                "Reset your Konvo password",
+                """
+                Hi %s,
+
+                Someone (hopefully you) asked to reset the password on your
+                Konvo account. Click the link below to set a new one — the
+                link is good for one hour.
+
+                %s
+
+                If you didn't ask for this, you can ignore this message.
+                — The Konvo team
+                """.formatted(fullName, resetLink)));
         return raw;
     }
 

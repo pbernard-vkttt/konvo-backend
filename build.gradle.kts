@@ -36,6 +36,16 @@ dependencies {
 
     implementation("com.auth0:java-jwt:4.5.0")
 
+    // ShedLock — cluster-safe lock for @Scheduled jobs (M8: usage rollup).
+    implementation("net.javacrumbs.shedlock:shedlock-spring:5.16.0")
+    implementation("net.javacrumbs.shedlock:shedlock-provider-jdbc-template:5.16.0")
+
+    // Redis for the M8 SSE hub + ticket store. Lettuce ships with this starter.
+    implementation("org.springframework.boot:spring-boot-starter-data-redis")
+
+    // Spring Mail for the M8 password-reset / invitation send paths.
+    implementation("org.springframework.boot:spring-boot-starter-mail")
+
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0")
 
     compileOnly("org.projectlombok:lombok:1.18.34")

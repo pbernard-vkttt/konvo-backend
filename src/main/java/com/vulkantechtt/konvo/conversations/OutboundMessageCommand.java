@@ -9,6 +9,7 @@ import java.util.UUID;
  * plug in with one publish call.
  */
 public record OutboundMessageCommand(
+        UUID messageId,
         UUID tenantId,
         UUID conversationId,
         UUID channelId,

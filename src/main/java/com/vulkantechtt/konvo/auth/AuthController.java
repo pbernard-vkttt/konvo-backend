@@ -10,6 +10,7 @@ import com.vulkantechtt.konvo.auth.dto.ResetPasswordRequest;
 import com.vulkantechtt.konvo.security.KonvoPrincipal;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -27,10 +28,15 @@ public class AuthController {
 
     private final AuthService authService;
     private final AuthCookieWriter cookies;
+    private final boolean devTokenInResponse;
 
-    public AuthController(AuthService authService, AuthCookieWriter cookies) {
+    public AuthController(
+            AuthService authService,
+            AuthCookieWriter cookies,
+            @Value("${konvo.auth.dev-token-in-response:false}") boolean devTokenInResponse) {
         this.authService = authService;
         this.cookies = cookies;
+        this.devTokenInResponse = devTokenInResponse;
     }
 
     @PostMapping("/login")
@@ -70,9 +76,12 @@ public class AuthController {
     }
 
     @PostMapping("/password/forgot")
-    public ResponseEntity<ForgotPasswordResponse> forgot(@Valid @RequestBody ForgotPasswordRequest req) {
+    public ResponseEntity<?> forgot(@Valid @RequestBody ForgotPasswordRequest req) {
         String raw = authService.beginPasswordReset(req.email());
-        return ResponseEntity.ok(new ForgotPasswordResponse(true, raw));
+        if (devTokenInResponse) {
+            return ResponseEntity.ok(new DevForgotPasswordResponse(true, raw));
+        }
+        return ResponseEntity.ok(new ForgotPasswordResponse(true));
     }
 
     @PostMapping("/password/reset")
@@ -112,7 +121,9 @@ public class AuthController {
      * never echo the token in the response. We still respond {@code ok:true}
      * unconditionally so the endpoint can't be used to probe email existence.
      */
-    public record ForgotPasswordResponse(boolean ok, String devToken) {}
+    public record ForgotPasswordResponse(boolean ok) {}
+
+    public record DevForgotPasswordResponse(boolean ok, String devToken) {}
 
     public record MeResponse(
             java.util.UUID userId,

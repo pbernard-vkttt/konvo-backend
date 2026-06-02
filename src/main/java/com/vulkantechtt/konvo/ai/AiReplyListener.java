@@ -138,7 +138,7 @@ public class AiReplyListener {
                 return;
             }
             dispatcher.enqueue(new OutboundMessageCommand(
-                    cmd.tenantId(), cmd.conversationId(), cmd.channelId(),
+                    null, cmd.tenantId(), cmd.conversationId(), cmd.channelId(),
                     cmd.customerId(), customer.getPhone(), body));
         } catch (Exception e) {
             int latency = (int) (System.currentTimeMillis() - start);

@@ -1,12 +1,16 @@
 package com.vulkantechtt.konvo.usage;
 
+import java.sql.Types;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.time.YearMonth;
 import java.time.ZoneOffset;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.SqlParameterValue;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -61,6 +65,7 @@ public class UsageRollupJob {
     }
 
     @Scheduled(cron = "0 15 2 * * *", zone = "UTC")
+    @SchedulerLock(name = "usage-rollup-current-month", lockAtMostFor = "PT10M", lockAtLeastFor = "PT1M")
     @Transactional
     public void rollupCurrentMonth() {
         YearMonth current = YearMonth.now(ZoneOffset.UTC);
@@ -72,17 +77,25 @@ public class UsageRollupJob {
     public int rollupMonth(YearMonth month) {
         Instant start = month.atDay(1).atStartOfDay(ZoneOffset.UTC).toInstant();
         Instant end   = month.plusMonths(1).atDay(1).atStartOfDay(ZoneOffset.UTC).toInstant();
+        SqlParameterValue startParam = timestampParam(start);
+        SqlParameterValue endParam = timestampParam(end);
         String periodKey = String.format("%04d-%02d", month.getYear(), month.getMonthValue());
         int rows = jdbc.update(UPSERT_SQL,
                 periodKey,
-                start, end,
-                start, end,
-                start, end);
+                startParam, endParam,
+                startParam, endParam,
+                startParam, endParam);
         log.info("usage_counters rollup for {} touched {} tenant rows", periodKey, rows);
         return rows;
     }
 
     public static String periodKeyFor(LocalDate date) {
         return String.format("%04d-%02d", date.getYear(), date.getMonthValue());
+    }
+
+    private static SqlParameterValue timestampParam(Instant value) {
+        return new SqlParameterValue(
+                Types.TIMESTAMP_WITH_TIMEZONE,
+                OffsetDateTime.ofInstant(value, ZoneOffset.UTC));
     }
 }

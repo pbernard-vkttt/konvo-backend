@@ -4,6 +4,7 @@ import com.vulkantechtt.konvo.audit.AuditAction;
 import com.vulkantechtt.konvo.audit.AuditService;
 import com.vulkantechtt.konvo.channels.Channel;
 import com.vulkantechtt.konvo.channels.ChannelRepository;
+import com.vulkantechtt.konvo.common.AfterCommit;
 import com.vulkantechtt.konvo.common.KonvoException;
 import com.vulkantechtt.konvo.common.PageResponse;
 import com.vulkantechtt.konvo.conversations.Conversation;
@@ -155,11 +156,16 @@ public class TemplateService {
             target.conversation.setLastMessagePreview(msg.getBody());
             conversations.save(target.conversation);
 
-            sseHub.broadcast(principal.tenantId(), "message_appended",
-                    java.util.Map.of("conversationId", target.conversation.getId().toString(),
-                            "messageId", msg.getId().toString()));
-            sseHub.broadcast(principal.tenantId(), "conversation_updated",
-                    java.util.Map.of("conversationId", target.conversation.getId().toString()));
+            UUID tenantId = principal.tenantId();
+            UUID conversationId = target.conversation.getId();
+            UUID messageId = msg.getId();
+            AfterCommit.run(() -> {
+                sseHub.broadcast(tenantId, "message_appended",
+                        java.util.Map.of("conversationId", conversationId.toString(),
+                                "messageId", messageId.toString()));
+                sseHub.broadcast(tenantId, "conversation_updated",
+                        java.util.Map.of("conversationId", conversationId.toString()));
+            });
         }
         audit.record(principal, AuditAction.TEMPLATE_SENT, template.getId(),
                 "Sent template " + template.getName() + " to " + target.phone,

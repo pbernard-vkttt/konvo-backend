@@ -11,14 +11,12 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
- * Tenant-scoped fan-out of in-process events to SSE subscribers. Listeners
- * (ingest, outbound, etc.) call {@link #broadcast} once their persistence
- * commits; this hub pushes the payload to every emitter registered for that
- * tenant.
- *
- * Single-instance only for M4 — when we go multi-pod (M8), this gets replaced
- * with a Redis pub/sub fan-out so a webhook landing on pod A can reach an
- * agent's open EventSource on pod B.
+ * Tenant-scoped fan-out of events to SSE subscribers. Domain code calls
+ * {@link #broadcast}; the configured {@link RealtimeBus} decides whether
+ * that delivery stays local (single-pod default) or routes through Redis
+ * pub/sub (multi-pod, M8). The bus eventually calls back into
+ * {@link #deliverLocal} on every pod, which is what actually writes to the
+ * SSE emitters that pod is hosting.
  */
 @Component
 public class SseHub {
@@ -26,6 +24,11 @@ public class SseHub {
     private static final Logger log = LoggerFactory.getLogger(SseHub.class);
 
     private final Map<UUID, CopyOnWriteArraySet<SseEmitter>> tenants = new ConcurrentHashMap<>();
+    private final RealtimeBus bus;
+
+    public SseHub(RealtimeBus bus) {
+        this.bus = bus;
+    }
 
     public SseEmitter register(UUID tenantId) {
         SseEmitter emitter = new SseEmitter(0L); // never time out from server side
@@ -45,7 +48,20 @@ public class SseHub {
         return emitter;
     }
 
+    /**
+     * Public broadcast: hands off to the configured {@link RealtimeBus}.
+     * Domain code should call this — never {@link #deliverLocal}.
+     */
     public void broadcast(UUID tenantId, String eventName, Object payload) {
+        bus.publish(tenantId, eventName, payload);
+    }
+
+    /**
+     * Writes to this pod's emitters only. Called by the bus once the message
+     * has been routed (immediately for local, via Redis subscriber for the
+     * Redis impl). Package-private so domain code can't bypass the bus.
+     */
+    void deliverLocal(UUID tenantId, String eventName, Object payload) {
         var set = tenants.get(tenantId);
         if (set == null || set.isEmpty()) return;
         for (SseEmitter emitter : set) {
