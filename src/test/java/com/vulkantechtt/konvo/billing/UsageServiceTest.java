@@ -1,6 +1,7 @@
 package com.vulkantechtt.konvo.billing;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.InstanceOfAssertFactories.type;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -9,7 +10,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.sql.Types;
 import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -17,6 +20,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.SqlParameterValue;
 
 @ExtendWith(MockitoExtension.class)
 class UsageServiceTest {
@@ -75,6 +79,36 @@ class UsageServiceTest {
                 .contains("from messages")
                 .contains("sent_at")
                 .doesNotContain("created_at");
+    }
+
+    @Test
+    void snapshotBindsPeriodInstantsWithExplicitTimestampType() {
+        UsageService usage = new UsageService(jdbc);
+        when(jdbc.queryForObject(anyString(), eq(Long.class), any(), any(), any()))
+                .thenReturn(0L, 0L, 0L);
+
+        Instant start = Instant.parse("2026-05-01T00:00:00Z");
+        Instant end = Instant.parse("2026-06-01T00:00:00Z");
+
+        usage.snapshot(UUID.randomUUID(), start, end);
+
+        ArgumentCaptor<Object> startParam = ArgumentCaptor.forClass(Object.class);
+        ArgumentCaptor<Object> endParam = ArgumentCaptor.forClass(Object.class);
+        verify(jdbc, times(3)).queryForObject(anyString(), eq(Long.class),
+                any(), startParam.capture(), endParam.capture());
+
+        assertThat(startParam.getAllValues()).allSatisfy(value -> assertThat(value)
+                .asInstanceOf(type(SqlParameterValue.class))
+                .satisfies(param -> {
+                    assertThat(param.getSqlType()).isEqualTo(Types.TIMESTAMP_WITH_TIMEZONE);
+                    assertThat(param.getValue()).isEqualTo(OffsetDateTime.parse("2026-05-01T00:00:00Z"));
+                }));
+        assertThat(endParam.getAllValues()).allSatisfy(value -> assertThat(value)
+                .asInstanceOf(type(SqlParameterValue.class))
+                .satisfies(param -> {
+                    assertThat(param.getSqlType()).isEqualTo(Types.TIMESTAMP_WITH_TIMEZONE);
+                    assertThat(param.getValue()).isEqualTo(OffsetDateTime.parse("2026-06-01T00:00:00Z"));
+                }));
     }
 
     private static Plan planLimits(int msgs, int aiRuns, int aiTokens) {
