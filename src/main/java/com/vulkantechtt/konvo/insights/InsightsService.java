@@ -7,8 +7,10 @@ import com.vulkantechtt.konvo.insights.dto.InsightsSnapshot.Kpis;
 import com.vulkantechtt.konvo.insights.dto.InsightsSnapshot.ResponseTimeBucket;
 import com.vulkantechtt.konvo.insights.dto.InsightsSnapshot.TopCustomerRow;
 import com.vulkantechtt.konvo.insights.dto.InsightsSnapshot.TrafficPoint;
+import java.sql.Types;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -18,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.SqlParameterValue;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,20 +47,22 @@ public class InsightsService {
         LocalDate startDay = today.minusDays(rangeDays - 1L);
         Instant start = startDay.atStartOfDay(ZoneOffset.UTC).toInstant();
         Instant end   = today.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant();
+        SqlParameterValue startParam = timestampParam(start);
+        SqlParameterValue endParam = timestampParam(end);
 
         return new InsightsSnapshot(
                 rangeDays,
                 start,
                 end,
-                kpis(tenantId, start, end),
-                trafficByDay(tenantId, start, end, startDay, rangeDays),
-                aiCostByDay(tenantId, start, end, startDay, rangeDays),
-                topCustomers(tenantId, start, end),
-                responseTimeBuckets(tenantId, start, end),
-                channelBreakdown(tenantId, start, end));
+                kpis(tenantId, startParam, endParam),
+                trafficByDay(tenantId, startParam, endParam, startDay, rangeDays),
+                aiCostByDay(tenantId, startParam, endParam, startDay, rangeDays),
+                topCustomers(tenantId, startParam, endParam),
+                responseTimeBuckets(tenantId, startParam, endParam),
+                channelBreakdown(tenantId, startParam, endParam));
     }
 
-    private Kpis kpis(UUID tenantId, Instant start, Instant end) {
+    private Kpis kpis(UUID tenantId, SqlParameterValue start, SqlParameterValue end) {
         Long conversations = jdbc.queryForObject("""
                 select count(distinct conversation_id) from messages
                 where tenant_id = ? and created_at >= ? and created_at < ?
@@ -85,7 +90,7 @@ public class InsightsService {
                 avgLatency);
     }
 
-    private List<TrafficPoint> trafficByDay(UUID tenantId, Instant start, Instant end,
+    private List<TrafficPoint> trafficByDay(UUID tenantId, SqlParameterValue start, SqlParameterValue end,
                                              LocalDate startDay, int rangeDays) {
         List<Map<String, Object>> rows = jdbc.queryForList("""
                 select date_trunc('day', created_at at time zone 'UTC')::date as day,
@@ -108,7 +113,7 @@ public class InsightsService {
         return out;
     }
 
-    private List<AiCostPoint> aiCostByDay(UUID tenantId, Instant start, Instant end,
+    private List<AiCostPoint> aiCostByDay(UUID tenantId, SqlParameterValue start, SqlParameterValue end,
                                            LocalDate startDay, int rangeDays) {
         List<Map<String, Object>> rows = jdbc.queryForList("""
                 select date_trunc('day', created_at at time zone 'UTC')::date as day,
@@ -133,7 +138,7 @@ public class InsightsService {
         return out;
     }
 
-    private List<TopCustomerRow> topCustomers(UUID tenantId, Instant start, Instant end) {
+    private List<TopCustomerRow> topCustomers(UUID tenantId, SqlParameterValue start, SqlParameterValue end) {
         List<Map<String, Object>> rows = jdbc.queryForList("""
                 select c.id as customer_id,
                        coalesce(nullif(c.display_name, ''), nullif(c.profile_name, ''), c.phone) as name,
@@ -163,7 +168,7 @@ public class InsightsService {
      * outbound reply, the seconds between them. Bucketed into <10s,
      * 10s–1m, 1m–5m, 5m–30m, >30m.
      */
-    private List<ResponseTimeBucket> responseTimeBuckets(UUID tenantId, Instant start, Instant end) {
+    private List<ResponseTimeBucket> responseTimeBuckets(UUID tenantId, SqlParameterValue start, SqlParameterValue end) {
         List<Map<String, Object>> rows = jdbc.queryForList("""
                 with paired as (
                   select m.id as inbound_id, m.conversation_id, m.created_at as inbound_at,
@@ -207,7 +212,7 @@ public class InsightsService {
         return out;
     }
 
-    private List<ChannelBreakdownRow> channelBreakdown(UUID tenantId, Instant start, Instant end) {
+    private List<ChannelBreakdownRow> channelBreakdown(UUID tenantId, SqlParameterValue start, SqlParameterValue end) {
         List<Map<String, Object>> rows = jdbc.queryForList("""
                 select ch.id as channel_id,
                        coalesce(ch.display_name, ch.provider) as name,
@@ -234,6 +239,12 @@ public class InsightsService {
 
     private static long asLong(Object o) { return o == null ? 0 : ((Number) o).longValue(); }
     private static double asDouble(Object o) { return o == null ? 0.0 : ((Number) o).doubleValue(); }
+
+    private static SqlParameterValue timestampParam(Instant value) {
+        return new SqlParameterValue(
+                Types.TIMESTAMP_WITH_TIMEZONE,
+                OffsetDateTime.ofInstant(value, ZoneOffset.UTC));
+    }
 
     @SuppressWarnings("unused") // reserved for tests
     static long daysBetween(Instant a, Instant b) {
