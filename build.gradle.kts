@@ -42,6 +42,7 @@ dependencies {
 
     // Redis for the M8 SSE hub + ticket store. Lettuce ships with this starter.
     implementation("org.springframework.boot:spring-boot-starter-data-redis")
+    implementation("org.apache.commons:commons-pool2")
 
     // Spring Mail for the M8 password-reset / invitation send paths.
     implementation("org.springframework.boot:spring-boot-starter-mail")
