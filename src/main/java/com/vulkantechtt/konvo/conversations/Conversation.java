@@ -35,8 +35,11 @@ public class Conversation extends BaseEntity {
     @Column(name = "assigned_user_id")
     private UUID assignedUserId;
 
+    // Vee auto-reply is on by default, so the very first inbound message on a
+    // brand-new conversation gets an automatic reply. Agents can toggle it off
+    // per thread from the inbox.
     @Column(name = "auto_reply_enabled", nullable = false)
-    private boolean autoReplyEnabled = false;
+    private boolean autoReplyEnabled = true;
 
     public UUID getTenantId() { return tenantId; }
     public void setTenantId(UUID tenantId) { this.tenantId = tenantId; }

@@ -117,6 +117,45 @@ class InboundIngestListenerTest {
     }
 
     @Test
+    void firstMessageOnANewConversationGetsAnAutoReply() {
+        byte[] raw = "{}".getBytes();
+        MetaWebhookPayload payload = payloadFromOneSender("wamid.first");
+
+        Channel channel = new Channel();
+        channel.setId(channelId);
+        channel.setTenantId(tenantId);
+        when(channels.findById(channelId)).thenReturn(Optional.of(channel));
+        when(json.readValue(raw, MetaWebhookPayload.class)).thenReturn(payload);
+
+        Customer customer = new Customer();
+        customer.setId(customerId);
+        customer.setTenantId(tenantId);
+        customer.setPhone(FROM);
+        when(customers.findByTenantIdAndPhone(tenantId, FROM)).thenReturn(Optional.of(customer));
+
+        // No existing thread — the listener creates one (auto-reply on by default).
+        when(conversations.findByChannelIdAndCustomerId(channelId, customerId)).thenReturn(Optional.empty());
+        when(conversations.save(any())).thenAnswer(inv -> {
+            Conversation c = inv.getArgument(0);
+            if (c.getId() == null) c.setId(conversationId);
+            return c;
+        });
+        when(messages.findByWaMessageIdIn(anyList())).thenReturn(List.of());
+        when(messages.save(any())).thenAnswer(inv -> {
+            Message m = inv.getArgument(0);
+            if (m.getId() == null) m.setId(UUID.randomUUID());
+            return m;
+        });
+
+        listener.onInbound(new WebhookInboundEvent(channelId, raw));
+
+        // The freshly created conversation defaults to auto-reply on, so the
+        // initial inbound message triggers a Vee reply.
+        verify(messages, times(1)).save(any());
+        verify(outbox, times(1)).publish(eq("ai.reply.inbound"), any());
+    }
+
+    @Test
     void skipsMessagesAlreadyPersisted() {
         byte[] raw = "{}".getBytes();
         wireChannelAndExistingThread(payloadFromOneSender("wamid.A", "wamid.B"), raw);
