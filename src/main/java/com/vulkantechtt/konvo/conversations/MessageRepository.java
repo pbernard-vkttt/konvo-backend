@@ -16,4 +16,8 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
     List<Message> findByWaMessageIdIn(Collection<String> waMessageIds);
 
     Page<Message> findByConversationIdOrderBySentAtAsc(UUID conversationId, Pageable pageable);
+
+    /** Most recent customer (inbound) message — anchors the WhatsApp 24h window. */
+    Optional<Message> findFirstByConversationIdAndDirectionOrderBySentAtDesc(
+            UUID conversationId, MessageDirection direction);
 }

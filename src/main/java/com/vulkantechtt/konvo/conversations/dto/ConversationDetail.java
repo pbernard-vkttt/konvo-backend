@@ -9,6 +9,7 @@ public record ConversationDetail(
         UUID id,
         UUID channelId,
         String channelDisplayName,
+        String channelProvider,
         UUID customerId,
         String customerName,
         String customerPhone,
@@ -16,5 +17,8 @@ public record ConversationDetail(
         UUID assignedUserId,
         boolean autoReplyEnabled,
         Instant lastMessageAt,
+        // Timestamp of the customer's most recent inbound message; the WhatsApp
+        // 24h free-form reply window is measured from here. Null if none yet.
+        Instant lastInboundAt,
         Instant createdAt) {
 }

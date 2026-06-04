@@ -1,6 +1,7 @@
 package com.vulkantechtt.konvo.conversations;
 
 import com.vulkantechtt.konvo.channels.Channel;
+import com.vulkantechtt.konvo.channels.ChannelProvider;
 import com.vulkantechtt.konvo.channels.ChannelRepository;
 import com.vulkantechtt.konvo.common.KonvoException;
 import com.vulkantechtt.konvo.common.PageResponse;
@@ -12,6 +13,8 @@ import com.vulkantechtt.konvo.notifications.NotificationService;
 import com.vulkantechtt.konvo.notifications.NotificationType;
 import com.vulkantechtt.konvo.security.KonvoPrincipal;
 import com.vulkantechtt.konvo.users.Role;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -29,18 +32,28 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class ConversationService {
 
+    /**
+     * WhatsApp's customer service window: free-form replies are only allowed
+     * within 24h of the customer's last inbound message. After that, only
+     * approved templates can be sent. See {@link #assertWhatsAppWindowOpen}.
+     */
+    public static final Duration WHATSAPP_SESSION_WINDOW = Duration.ofHours(24);
+
     private final ConversationRepository conversations;
     private final CustomerRepository customers;
     private final ChannelRepository channels;
+    private final MessageRepository messages;
     private final NotificationService notifications;
 
     public ConversationService(ConversationRepository conversations,
                                CustomerRepository customers,
                                ChannelRepository channels,
+                               MessageRepository messages,
                                NotificationService notifications) {
         this.conversations = conversations;
         this.customers = customers;
         this.channels = channels;
+        this.messages = messages;
         this.notifications = notifications;
     }
 
@@ -65,6 +78,7 @@ public class ConversationService {
                 c.getId(),
                 c.getChannelId(),
                 ch != null ? ch.getDisplayName() : null,
+                ch != null ? ch.getProvider().name() : null,
                 c.getCustomerId(),
                 cu != null ? displayNameOf(cu) : null,
                 cu != null ? cu.getPhone() : null,
@@ -72,6 +86,7 @@ public class ConversationService {
                 c.getAssignedUserId(),
                 c.isAutoReplyEnabled(),
                 c.getLastMessageAt(),
+                lastInboundAt(c.getId()),
                 c.getCreatedAt());
     }
 
@@ -165,6 +180,36 @@ public class ConversationService {
     // rules don't drift.
     public Conversation requireVisibleConversation(KonvoPrincipal principal, UUID id) {
         return requireVisible(principal, id);
+    }
+
+    /** Timestamp of the customer's most recent inbound message, or null if none. */
+    Instant lastInboundAt(UUID conversationId) {
+        return messages
+                .findFirstByConversationIdAndDirectionOrderBySentAtDesc(conversationId, MessageDirection.inbound)
+                .map(Message::getSentAt)
+                .orElse(null);
+    }
+
+    /**
+     * Guards the WhatsApp 24h customer service window. No-op for non-WhatsApp
+     * channels. Throws if the channel is WhatsApp and either the customer has
+     * never messaged or their last inbound is older than the window — in which
+     * case only an approved template (not a free-form reply) may be sent.
+     */
+    public void assertWhatsAppWindowOpen(Conversation conv) {
+        Channel ch = channels.findById(conv.getChannelId()).orElse(null);
+        if (ch == null || !isWhatsApp(ch.getProvider())) {
+            return;
+        }
+        Instant lastInbound = lastInboundAt(conv.getId());
+        if (lastInbound == null || Instant.now().isAfter(lastInbound.plus(WHATSAPP_SESSION_WINDOW))) {
+            throw KonvoException.badRequest(
+                    "The 24-hour WhatsApp reply window has closed. Send an approved template to reopen the chat.");
+        }
+    }
+
+    private static boolean isWhatsApp(ChannelProvider provider) {
+        return provider != null && provider.name().startsWith("whatsapp");
     }
 
 }

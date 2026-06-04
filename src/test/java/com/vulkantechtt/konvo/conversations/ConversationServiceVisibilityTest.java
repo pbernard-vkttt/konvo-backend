@@ -4,12 +4,16 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
+import com.vulkantechtt.konvo.channels.Channel;
+import com.vulkantechtt.konvo.channels.ChannelProvider;
 import com.vulkantechtt.konvo.channels.ChannelRepository;
 import com.vulkantechtt.konvo.common.KonvoException;
 import com.vulkantechtt.konvo.customers.CustomerRepository;
 import com.vulkantechtt.konvo.notifications.NotificationService;
 import com.vulkantechtt.konvo.security.KonvoPrincipal;
 import com.vulkantechtt.konvo.users.Role;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -24,6 +28,7 @@ class ConversationServiceVisibilityTest {
     @Mock ConversationRepository conversations;
     @Mock CustomerRepository customers;
     @Mock ChannelRepository channels;
+    @Mock MessageRepository messages;
     @Mock NotificationService notifications;
 
     @InjectMocks ConversationService service;
@@ -124,8 +129,55 @@ class ConversationServiceVisibilityTest {
                 .isInstanceOf(KonvoException.class);
     }
 
+    @Test
+    void whatsAppWindowOpenWhenInboundWithin24h() {
+        Conversation c = build(tenantId, null);
+        when(channels.findById(c.getChannelId())).thenReturn(Optional.of(whatsappChannel()));
+        when(messages.findFirstByConversationIdAndDirectionOrderBySentAtDesc(c.getId(), MessageDirection.inbound))
+                .thenReturn(Optional.of(inboundAt(c.getId(), Instant.now().minus(Duration.ofHours(1)))));
+
+        assertThatCode(() -> service.assertWhatsAppWindowOpen(c)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void whatsAppWindowClosedWhenInboundOlderThan24h() {
+        Conversation c = build(tenantId, null);
+        when(channels.findById(c.getChannelId())).thenReturn(Optional.of(whatsappChannel()));
+        when(messages.findFirstByConversationIdAndDirectionOrderBySentAtDesc(c.getId(), MessageDirection.inbound))
+                .thenReturn(Optional.of(inboundAt(c.getId(), Instant.now().minus(Duration.ofHours(25)))));
+
+        assertThatThrownBy(() -> service.assertWhatsAppWindowOpen(c))
+                .isInstanceOf(KonvoException.class)
+                .hasMessageContaining("24-hour WhatsApp");
+    }
+
+    @Test
+    void whatsAppWindowClosedWhenNoInboundYet() {
+        Conversation c = build(tenantId, null);
+        when(channels.findById(c.getChannelId())).thenReturn(Optional.of(whatsappChannel()));
+        when(messages.findFirstByConversationIdAndDirectionOrderBySentAtDesc(c.getId(), MessageDirection.inbound))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.assertWhatsAppWindowOpen(c))
+                .isInstanceOf(KonvoException.class);
+    }
+
     private KonvoPrincipal principal(UUID userId, Role role) {
         return new KonvoPrincipal(userId, "u@x.tt", "U", tenantId, role);
+    }
+
+    private static Channel whatsappChannel() {
+        Channel ch = new Channel();
+        ch.setProvider(ChannelProvider.whatsapp_meta);
+        return ch;
+    }
+
+    private static Message inboundAt(UUID conversationId, Instant at) {
+        Message m = new Message();
+        m.setConversationId(conversationId);
+        m.setDirection(MessageDirection.inbound);
+        m.setSentAt(at);
+        return m;
     }
 
     private static Conversation build(UUID tenantId, UUID assignedUserId) {

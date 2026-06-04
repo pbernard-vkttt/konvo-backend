@@ -60,6 +60,9 @@ public class MessageService {
         if (conv.getStatus() == ConversationStatus.closed) {
             throw KonvoException.badRequest("Reopen this conversation before replying");
         }
+        // WhatsApp only allows free-form replies within 24h of the customer's
+        // last inbound message; outside that the agent must use a template.
+        conversationService.assertWhatsAppWindowOpen(conv);
         Customer customer = customers.findById(conv.getCustomerId())
                 .orElseThrow(() -> KonvoException.notFound("Customer", conv.getCustomerId()));
 
