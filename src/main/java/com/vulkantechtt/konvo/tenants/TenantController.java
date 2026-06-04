@@ -1,12 +1,15 @@
 package com.vulkantechtt.konvo.tenants;
 
-import com.vulkantechtt.konvo.common.KonvoException;
 import com.vulkantechtt.konvo.security.KonvoPrincipal;
 import com.vulkantechtt.konvo.tenants.dto.TenantResponse;
+import com.vulkantechtt.konvo.tenants.dto.UpdateTenantSettingsRequest;
+import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -14,23 +17,22 @@ import org.springframework.web.bind.annotation.RestController;
 @PreAuthorize("isAuthenticated()")
 public class TenantController {
 
-    private final TenantRepository tenantRepository;
+    private final TenantService tenantService;
 
-    public TenantController(TenantRepository tenantRepository) {
-        this.tenantRepository = tenantRepository;
+    public TenantController(TenantService tenantService) {
+        this.tenantService = tenantService;
     }
 
     @GetMapping("/me")
     public TenantResponse me(@AuthenticationPrincipal KonvoPrincipal principal) {
-        Tenant tenant = tenantRepository.findById(principal.tenantId())
-                .orElseThrow(() -> KonvoException.notFound("Tenant", principal.tenantId()));
-        return new TenantResponse(
-                tenant.getId(),
-                tenant.getName(),
-                tenant.getSlug(),
-                tenant.getCountryCode(),
-                tenant.getPlan(),
-                tenant.getStatus().name(),
-                tenant.getCreatedAt());
+        return tenantService.me(principal.tenantId());
+    }
+
+    @PatchMapping("/me/settings")
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
+    public TenantResponse updateSettings(
+            @AuthenticationPrincipal KonvoPrincipal principal,
+            @Valid @RequestBody UpdateTenantSettingsRequest req) {
+        return tenantService.updateSettings(principal, req);
     }
 }

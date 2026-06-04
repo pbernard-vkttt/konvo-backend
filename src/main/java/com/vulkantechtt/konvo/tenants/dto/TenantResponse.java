@@ -10,5 +10,6 @@ public record TenantResponse(
         String countryCode,
         String plan,
         String status,
+        int customerMemoryMessageLimit,
         Instant createdAt) {
 }

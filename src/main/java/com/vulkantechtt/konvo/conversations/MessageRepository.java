@@ -1,5 +1,6 @@
 package com.vulkantechtt.konvo.conversations;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -20,4 +21,8 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
     /** Most recent customer (inbound) message — anchors the WhatsApp 24h window. */
     Optional<Message> findFirstByConversationIdAndDirectionOrderBySentAtDesc(
             UUID conversationId, MessageDirection direction);
+
+    /** Previous messages for AI customer memory, newest first. */
+    List<Message> findByConversationIdAndSentAtBeforeOrderBySentAtDesc(
+            UUID conversationId, Instant sentAt, Pageable pageable);
 }

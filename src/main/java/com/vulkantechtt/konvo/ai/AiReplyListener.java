@@ -3,6 +3,8 @@ package com.vulkantechtt.konvo.ai;
 import com.vulkantechtt.konvo.config.RabbitConfig;
 import com.vulkantechtt.konvo.conversations.Conversation;
 import com.vulkantechtt.konvo.conversations.ConversationRepository;
+import com.vulkantechtt.konvo.conversations.Message;
+import com.vulkantechtt.konvo.conversations.MessageRepository;
 import com.vulkantechtt.konvo.conversations.OutboundMessageCommand;
 import com.vulkantechtt.konvo.conversations.OutboundMessageDispatcher;
 import com.vulkantechtt.konvo.customers.Customer;
@@ -10,10 +12,13 @@ import com.vulkantechtt.konvo.customers.CustomerRepository;
 import com.vulkantechtt.konvo.knowledge.KnowledgeRetriever;
 import com.vulkantechtt.konvo.tenants.Tenant;
 import com.vulkantechtt.konvo.tenants.TenantRepository;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 
 /**
@@ -37,6 +42,7 @@ public class AiReplyListener {
     private final AiCompletionProvider completion;
     private final KnowledgeRetriever retriever;
     private final ConversationRepository conversations;
+    private final MessageRepository messages;
     private final CustomerRepository customers;
     private final TenantRepository tenants;
     private final OutboundMessageDispatcher dispatcher;
@@ -49,6 +55,7 @@ public class AiReplyListener {
             AiCompletionProvider completion,
             KnowledgeRetriever retriever,
             ConversationRepository conversations,
+            MessageRepository messages,
             CustomerRepository customers,
             TenantRepository tenants,
             OutboundMessageDispatcher dispatcher,
@@ -59,6 +66,7 @@ public class AiReplyListener {
         this.completion = completion;
         this.retriever = retriever;
         this.conversations = conversations;
+        this.messages = messages;
         this.customers = customers;
         this.tenants = tenants;
         this.dispatcher = dispatcher;
@@ -108,13 +116,18 @@ public class AiReplyListener {
         }
         Tenant tenant = tenants.findById(cmd.tenantId()).orElse(null);
         String workspaceName = tenant != null ? tenant.getName() : "this workspace";
+        int memoryLimit = tenant != null
+                ? tenant.getCustomerMemoryMessageLimit()
+                : Tenant.DEFAULT_CUSTOMER_MEMORY_MESSAGE_LIMIT;
 
         long start = System.currentTimeMillis();
         try {
             List<KnowledgeRetriever.Hit> hits = retriever.topK(cmd.tenantId(), cmd.inboundBody(), TOP_K);
             String system = PromptBuilder.systemPrompt(workspaceName, hits);
+            List<AiCompletionProvider.CompletionRequest.Turn> memoryTurns =
+                    PromptBuilder.memoryTurns(previousMessages(cmd, memoryLimit));
             AiCompletionProvider.CompletionRequest req = new AiCompletionProvider.CompletionRequest(
-                    system, List.of(), cmd.inboundBody(), MAX_TOKENS, TEMPERATURE);
+                    system, memoryTurns, cmd.inboundBody(), MAX_TOKENS, TEMPERATURE);
             AiCompletionProvider.Completion result = completion.complete(req);
             int latency = (int) (System.currentTimeMillis() - start);
 
@@ -137,5 +150,25 @@ public class AiReplyListener {
             runs.recordFailure(cmd.tenantId(), cmd.conversationId(), "reply",
                     completion.name(), "unknown", latency, e.getMessage());
         }
+    }
+
+    private List<Message> previousMessages(AiReplyCommand cmd, int limit) {
+        if (limit <= 0) {
+            return List.of();
+        }
+        return messages.findById(cmd.inboundMessageId())
+                .map(current -> {
+                    if (current.getSentAt() == null) {
+                        return List.<Message>of();
+                    }
+                    List<Message> newestFirst = messages.findByConversationIdAndSentAtBeforeOrderBySentAtDesc(
+                            cmd.conversationId(),
+                            current.getSentAt(),
+                            PageRequest.of(0, Math.min(limit, Tenant.MAX_CUSTOMER_MEMORY_MESSAGE_LIMIT)));
+                    List<Message> chronological = new ArrayList<>(newestFirst);
+                    Collections.reverse(chronological);
+                    return chronological;
+                })
+                .orElseGet(List::of);
     }
 }

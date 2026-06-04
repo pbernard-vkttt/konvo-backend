@@ -11,6 +11,9 @@ import jakarta.persistence.Table;
 @Table(name = "tenants")
 public class Tenant extends BaseEntity {
 
+    public static final int DEFAULT_CUSTOMER_MEMORY_MESSAGE_LIMIT = 12;
+    public static final int MAX_CUSTOMER_MEMORY_MESSAGE_LIMIT = 50;
+
     @Column(name = "name", nullable = false, length = 120)
     private String name;
 
@@ -27,6 +30,9 @@ public class Tenant extends BaseEntity {
     @Column(name = "status", nullable = false, length = 16)
     private TenantStatus status = TenantStatus.active;
 
+    @Column(name = "customer_memory_message_limit", nullable = false)
+    private int customerMemoryMessageLimit = DEFAULT_CUSTOMER_MEMORY_MESSAGE_LIMIT;
+
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
 
@@ -41,4 +47,9 @@ public class Tenant extends BaseEntity {
 
     public TenantStatus getStatus() { return status; }
     public void setStatus(TenantStatus status) { this.status = status; }
+
+    public int getCustomerMemoryMessageLimit() { return customerMemoryMessageLimit; }
+    public void setCustomerMemoryMessageLimit(int customerMemoryMessageLimit) {
+        this.customerMemoryMessageLimit = customerMemoryMessageLimit;
+    }
 }

@@ -15,6 +15,8 @@ public enum AuditAction {
     CHANNEL_UPDATED("channel.updated", "channel"),
     CHANNEL_DISCONNECTED("channel.disconnected", "channel"),
 
+    WORKSPACE_SETTINGS_UPDATED("workspace.settings.updated", "tenant"),
+
     TEMPLATE_SYNCED("template.synced", "template"),
     TEMPLATE_SENT("template.sent", "template"),
 
