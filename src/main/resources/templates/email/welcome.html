@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Welcome to Konvelo</title>
+</head>
+<body style="margin:0;padding:0;background:#DCE3EF;font-family:'DM Sans',Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;background:#DCE3EF;">
+  <tr>
+    <td align="center" style="padding:40px 20px 60px;">
+      <table width="600" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 4px rgba(0,0,0,0.06),0 20px 60px rgba(0,0,0,0.12);max-width:600px;">
+
+        <!-- Gradient accent bar -->
+        <tr><td height="4" style="background:linear-gradient(135deg,#00BCD4 0%,#3F51B5 100%);font-size:0;line-height:0;">&nbsp;</td></tr>
+
+        <!-- Header -->
+        <tr>
+          <td bgcolor="#0B1020" style="padding:24px 40px;">
+            <svg width="30" height="30" viewBox="0 0 100 100" style="display:inline-block;vertical-align:middle;" aria-hidden="true"><rect x="22" y="18" width="14" height="71" rx="7" fill="#fff"/><path d="M34 52 L64 80 C67 83 64 90 58 87 L33 75 Z" fill="#fff"/><path d="M41 49 C37 47 37 42 41 40 L82 23 C86 21 89 25 87 29 L69 70 C67 74 62 73 60 69 L54 55 Z" fill="#1FD6EE"/></svg>
+            <span style="font-family:'Space Grotesk',Arial,sans-serif;font-weight:600;font-size:15px;color:#ffffff;vertical-align:middle;margin-left:10px;letter-spacing:-0.01em;">Konvelo</span>
+          </td>
+        </tr>
+
+        <!-- Gradient hero -->
+        <tr>
+          <td style="background:linear-gradient(145deg,#0D1A3A 0%,#1A2B6B 50%,#0A7A8F 100%);padding:44px 40px 0;text-align:center;">
+            <div style="display:inline-block;background:radial-gradient(circle,rgba(0,188,212,0.22) 0%,transparent 70%);padding:12px;border-radius:50%;">
+              <img th:src="${assetsBaseUrl} + '/assets/vee-mascot.png'" src="" alt="Vee" width="130" height="130"
+                   style="display:block;border-radius:50%;background:#fff;box-shadow:0 0 0 3px rgba(0,188,212,0.35),0 16px 40px rgba(0,0,0,0.3);">
+            </div>
+            <p style="font-family:'Space Grotesk',Arial,sans-serif;font-weight:700;font-size:30px;color:#ffffff;margin:20px 0 10px;letter-spacing:-0.025em;line-height:1.15;">
+              Welcome aboard, <span th:text="${firstName}">there</span>!
+            </p>
+            <p style="font-family:'DM Sans',Arial,sans-serif;font-size:16px;color:rgba(255,255,255,0.7);margin:0 0 36px;line-height:1.6;">
+              Your Konvelo account is live and ready to go.
+            </p>
+          </td>
+        </tr>
+
+        <!-- White body -->
+        <tr>
+          <td bgcolor="#ffffff" style="padding:36px 40px 32px;">
+            <p style="font-family:'DM Sans',Arial,sans-serif;font-size:16px;color:#364164;margin:0 0 28px;line-height:1.7;">
+              Manage every customer conversation from one AI-powered inbox. Vee is ready to help your team reply faster, capture more leads, and build better customer relationships.
+            </p>
+            <!-- CTA -->
+            <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom:36px;">
+              <tr>
+                <td align="center" style="border-radius:12px;background:linear-gradient(135deg,#00BCD4 0%,#3F51B5 100%);box-shadow:0 8px 24px rgba(63,81,181,0.30);">
+                  <a th:href="${appUrl}" href="#" style="display:inline-block;padding:15px 36px;font-family:'Space Grotesk',Arial,sans-serif;font-weight:600;font-size:15px;color:#ffffff;text-decoration:none;letter-spacing:-0.01em;white-space:nowrap;">Open your inbox &#8594;</a>
+                </td>
+              </tr>
+            </table>
+            <!-- Divider -->
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:28px;"><tr><td height="1" bgcolor="#DEE3EE" style="font-size:0;line-height:0;">&nbsp;</td></tr></table>
+            <!-- Feature 1 -->
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:22px;">
+              <tr>
+                <td width="50" valign="top">
+                  <table cellpadding="0" cellspacing="0" border="0"><tr>
+                    <td width="38" height="38" align="center" valign="middle" bgcolor="#EEF0FB" style="border-radius:9px;">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3F51B5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    </td>
+                  </tr></table>
+                </td>
+                <td valign="top" style="padding-left:14px;">
+                  <p style="font-family:'Space Grotesk',Arial,sans-serif;font-weight:600;font-size:14px;color:#0B1020;margin:0 0 3px;letter-spacing:-0.005em;">Shared team inbox</p>
+                  <p style="font-family:'DM Sans',Arial,sans-serif;font-size:13.5px;color:#5A6480;margin:0;line-height:1.55;">All customer conversations in one place — WhatsApp and more channels as you grow.</p>
+                </td>
+              </tr>
+            </table>
+            <!-- Feature 2 -->
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:22px;">
+              <tr>
+                <td width="50" valign="top">
+                  <table cellpadding="0" cellspacing="0" border="0"><tr>
+                    <td width="38" height="38" align="center" valign="middle" bgcolor="#E6FAFD" style="border-radius:9px;">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0091A7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>
+                    </td>
+                  </tr></table>
+                </td>
+                <td valign="top" style="padding-left:14px;">
+                  <p style="font-family:'Space Grotesk',Arial,sans-serif;font-weight:600;font-size:14px;color:#0B1020;margin:0 0 3px;letter-spacing:-0.005em;">AI-powered replies</p>
+                  <p style="font-family:'DM Sans',Arial,sans-serif;font-size:13.5px;color:#5A6480;margin:0;line-height:1.55;">Vee answers common questions, qualifies leads, and suggests replies from your knowledge base — 24/7.</p>
+                </td>
+              </tr>
+            </table>
+            <!-- Feature 3 -->
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td width="50" valign="top">
+                  <table cellpadding="0" cellspacing="0" border="0"><tr>
+                    <td width="38" height="38" align="center" valign="middle" bgcolor="#EEF0FB" style="border-radius:9px;">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3F51B5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                    </td>
+                  </tr></table>
+                </td>
+                <td valign="top" style="padding-left:14px;">
+                  <p style="font-family:'Space Grotesk',Arial,sans-serif;font-weight:600;font-size:14px;color:#0B1020;margin:0 0 3px;letter-spacing:-0.005em;">Human takeover</p>
+                  <p style="font-family:'DM Sans',Arial,sans-serif;font-size:13.5px;color:#5A6480;margin:0;line-height:1.55;">Your team stays in control — take over any conversation, pause AI, and hand back when ready.</p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td bgcolor="#F7F9FC" style="padding:22px 40px;border-top:1px solid #DEE3EE;">
+            <p style="font-family:'DM Sans',Arial,sans-serif;font-size:12px;color:#9BA3B7;margin:0 0 6px;text-align:center;line-height:1.6;">Konvelo &middot; Port of Spain, Trinidad &amp; Tobago</p>
+            <p style="font-family:'DM Sans',Arial,sans-serif;font-size:12px;color:#9BA3B7;margin:0;text-align:center;">
+              <a th:href="${appUrl} + '/privacy'" href="#" style="color:#5A6480;text-decoration:underline;">Privacy Policy</a>&nbsp;&nbsp;&middot;&nbsp;&nbsp;<a th:href="${appUrl} + '/help'" href="#" style="color:#5A6480;text-decoration:underline;">Help Centre</a>
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>

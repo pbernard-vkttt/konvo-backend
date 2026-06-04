@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title th:text="${inviterName} + ' invited you to join ' + ${tenantName}">You're invited to join a team</title>
+</head>
+<body style="margin:0;padding:0;background:#DCE3EF;font-family:'DM Sans',Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;background:#DCE3EF;">
+  <tr>
+    <td align="center" style="padding:40px 20px 60px;">
+      <table width="600" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 4px rgba(0,0,0,0.06),0 20px 60px rgba(0,0,0,0.12);max-width:600px;">
+
+        <!-- Gradient bar -->
+        <tr><td height="4" style="background:linear-gradient(135deg,#00BCD4 0%,#3F51B5 100%);font-size:0;line-height:0;">&nbsp;</td></tr>
+
+        <!-- Indigo header -->
+        <tr>
+          <td bgcolor="#3F51B5" style="padding:24px 40px 28px;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td>
+                  <svg width="28" height="28" viewBox="0 0 100 100" style="display:inline-block;vertical-align:middle;" aria-hidden="true"><rect x="22" y="18" width="14" height="71" rx="7" fill="#fff"/><path d="M34 52 L64 80 C67 83 64 90 58 87 L33 75 Z" fill="#fff"/><path d="M41 49 C37 47 37 42 41 40 L82 23 C86 21 89 25 87 29 L69 70 C67 74 62 73 60 69 L54 55 Z" fill="#1FD6EE"/></svg>
+                  <span style="font-family:'Space Grotesk',Arial,sans-serif;font-weight:600;font-size:14px;color:rgba(255,255,255,0.85);vertical-align:middle;margin-left:10px;letter-spacing:-0.01em;">Konvelo</span>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding-top:28px;text-align:center;">
+                  <!-- Avatar row: team icon + inviter initials -->
+                  <table cellpadding="0" cellspacing="0" border="0" align="center" style="margin-bottom:20px;">
+                    <tr>
+                      <td width="60" height="60" align="center" valign="middle" style="border-radius:30px;background:linear-gradient(135deg,#00BCD4,#3F51B5);border:3px solid rgba(255,255,255,0.25);">
+                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                      </td>
+                      <td width="32" align="center" style="font-family:'DM Sans',Arial,sans-serif;font-size:18px;color:rgba(255,255,255,0.4);">+</td>
+                      <td width="60" height="60" align="center" valign="middle" style="border-radius:30px;background:#0091A7;border:3px solid rgba(255,255,255,0.25);">
+                        <span th:text="${inviterInitials}" style="font-family:'Space Grotesk',Arial,sans-serif;font-weight:700;font-size:20px;color:#ffffff;line-height:1;">?</span>
+                      </td>
+                    </tr>
+                  </table>
+                  <p style="font-family:'Space Grotesk',Arial,sans-serif;font-weight:700;font-size:24px;color:#ffffff;margin:0 0 8px;letter-spacing:-0.02em;line-height:1.2;">You're invited to join a team</p>
+                  <p style="font-family:'DM Sans',Arial,sans-serif;font-size:15px;color:rgba(255,255,255,0.72);margin:0;line-height:1.6;">
+                    <span th:text="${inviterName}">Someone</span> has invited you to collaborate on Konvelo
+                  </p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- White body -->
+        <tr>
+          <td bgcolor="#ffffff" style="padding:36px 40px 32px;">
+            <!-- Team card -->
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:32px;border:1.5px solid #D6DBF1;border-radius:12px;overflow:hidden;">
+              <tr>
+                <td height="4" colspan="2" style="background:linear-gradient(135deg,#00BCD4 0%,#3F51B5 100%);font-size:0;line-height:0;">&nbsp;</td>
+              </tr>
+              <tr>
+                <td style="padding:20px 24px;">
+                  <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                      <td width="44" valign="middle">
+                        <table cellpadding="0" cellspacing="0" border="0"><tr>
+                          <td width="38" height="38" align="center" valign="middle" style="border-radius:9px;background:linear-gradient(135deg,#00BCD4,#3F51B5);">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                          </td>
+                        </tr></table>
+                      </td>
+                      <td valign="middle" style="padding-left:14px;">
+                        <p th:text="${tenantName}" style="font-family:'Space Grotesk',Arial,sans-serif;font-weight:600;font-size:15px;color:#0B1020;margin:0 0 2px;letter-spacing:-0.01em;">Workspace</p>
+                        <p style="font-family:'DM Sans',Arial,sans-serif;font-size:13px;color:#5A6480;margin:0;">
+                          You'll join as <span th:text="${role}">member</span>
+                        </p>
+                      </td>
+                      <td valign="middle" align="right">
+                        <table cellpadding="0" cellspacing="0" border="0"><tr>
+                          <td bgcolor="#EEF0FB" style="border-radius:6px;padding:4px 10px;">
+                            <span th:text="${role}" style="font-family:'Space Grotesk',Arial,sans-serif;font-weight:600;font-size:11px;color:#3F51B5;letter-spacing:0.04em;text-transform:uppercase;">member</span>
+                          </td>
+                        </tr></table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+
+            <p style="font-family:'DM Sans',Arial,sans-serif;font-size:15.5px;color:#364164;margin:0 0 28px;line-height:1.7;">
+              Accept the invitation to join the team, access the shared inbox, and collaborate on customer conversations — all in one place.
+            </p>
+            <!-- CTA -->
+            <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom:20px;">
+              <tr>
+                <td align="center" style="border-radius:12px;background:linear-gradient(135deg,#00BCD4 0%,#3F51B5 100%);box-shadow:0 8px 24px rgba(63,81,181,0.28);">
+                  <a th:href="${inviteUrl}" href="#" style="display:inline-block;padding:15px 40px;font-family:'Space Grotesk',Arial,sans-serif;font-weight:600;font-size:15px;color:#ffffff;text-decoration:none;letter-spacing:-0.01em;">Accept invitation &#8594;</a>
+                </td>
+              </tr>
+            </table>
+            <!-- Expiry note -->
+            <p style="font-family:'DM Sans',Arial,sans-serif;font-size:13px;color:#9BA3B7;margin:0;line-height:1.5;text-align:center;">
+              This invitation expires <strong th:text="${expiresAt}" style="color:#5A6480;">in 7 days</strong>
+              &nbsp;&middot;&nbsp; Sent by <span th:text="${inviterName}">your inviter</span>
+              (<span th:text="${inviterEmail}">email</span>)
+            </p>
+          </td>
+        </tr>
+
+        <!-- Decline row -->
+        <tr>
+          <td bgcolor="#F7F9FC" style="padding:16px 40px;border-top:1px solid #DEE3EE;text-align:center;">
+            <p style="font-family:'DM Sans',Arial,sans-serif;font-size:13px;color:#9BA3B7;margin:0;">
+              Don't want to join? <a th:href="${declineUrl}" href="#" style="color:#5A6480;text-decoration:underline;">Decline invitation</a>
+            </p>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td bgcolor="#F7F9FC" style="padding:0 40px 22px;border-top:1px solid #DEE3EE;">
+            <p style="font-family:'DM Sans',Arial,sans-serif;font-size:12px;color:#9BA3B7;margin:0 0 6px;text-align:center;line-height:1.6;">Konvelo &middot; Port of Spain, Trinidad &amp; Tobago</p>
+            <p style="font-family:'DM Sans',Arial,sans-serif;font-size:12px;color:#9BA3B7;margin:0;text-align:center;">
+              <a th:href="${appUrl} + '/privacy'" href="#" style="color:#5A6480;text-decoration:underline;">Privacy Policy</a>&nbsp;&nbsp;&middot;&nbsp;&nbsp;<a th:href="${appUrl} + '/help'" href="#" style="color:#5A6480;text-decoration:underline;">Help Centre</a>
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>

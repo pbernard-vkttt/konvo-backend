@@ -1,6 +1,7 @@
 package com.vulkantechtt.konvo.auth;
 
 import com.vulkantechtt.konvo.auth.dto.AcceptInvitationRequest;
+import com.vulkantechtt.konvo.auth.dto.VerifyEmailRequest;
 import com.vulkantechtt.konvo.auth.dto.AuthSessionResponse;
 import com.vulkantechtt.konvo.auth.dto.ForgotPasswordRequest;
 import com.vulkantechtt.konvo.auth.dto.InvitationPreviewResponse;
@@ -13,7 +14,6 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -95,6 +95,12 @@ public class AuthController {
         return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/verify-email")
+    public ResponseEntity<Void> verifyEmail(@Valid @RequestBody VerifyEmailRequest req) {
+        authService.verifyEmail(req.token());
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/invitations/{token}/preview")
     public InvitationPreviewResponse previewInvitation(@PathVariable String token) {
         return authService.previewInvitation(token);
@@ -111,14 +117,16 @@ public class AuthController {
     }
 
     @GetMapping("/me")
-    @PreAuthorize("isAuthenticated()")
-    public MeResponse me(@AuthenticationPrincipal KonvoPrincipal principal) {
-        return new MeResponse(
-                principal.userId(),
-                principal.email(),
-                principal.fullName(),
-                principal.tenantId(),
-                principal.role().name());
+    public ResponseEntity<AuthSessionResponse> me(
+            @AuthenticationPrincipal KonvoPrincipal principal,
+            HttpServletRequest http) {
+        if (principal != null) {
+            return ResponseEntity.ok(authService.sessionFromPrincipal(principal));
+        }
+        AuthService.Session session = authService.refresh(cookies.readFromRequest(http), http);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, cookies.build(session.refreshTokenRaw()).toString())
+                .body(session.body());
     }
 
     /**
@@ -143,11 +151,4 @@ public class AuthController {
     public record ForgotPasswordResponse(boolean ok) {}
 
     public record DevForgotPasswordResponse(boolean ok, String devToken) {}
-
-    public record MeResponse(
-            java.util.UUID userId,
-            String email,
-            String fullName,
-            java.util.UUID tenantId,
-            String role) {}
 }

@@ -5,9 +5,11 @@ import com.vulkantechtt.konvo.audit.AuditService;
 import com.vulkantechtt.konvo.auth.TokenHasher;
 import com.vulkantechtt.konvo.auth.UserInvitation;
 import com.vulkantechtt.konvo.auth.UserInvitationRepository;
+import com.vulkantechtt.konvo.auth.AuthService;
 import com.vulkantechtt.konvo.common.KonvoException;
 import com.vulkantechtt.konvo.common.SafeText;
 import com.vulkantechtt.konvo.email.EmailSender;
+import com.vulkantechtt.konvo.email.EmailTemplateRenderer;
 import com.vulkantechtt.konvo.security.KonvoPrincipal;
 import com.vulkantechtt.konvo.tenants.Tenant;
 import com.vulkantechtt.konvo.tenants.TenantRepository;
@@ -16,7 +18,11 @@ import com.vulkantechtt.konvo.users.dto.InviteMemberRequest;
 import com.vulkantechtt.konvo.users.dto.MemberResponse;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,12 +38,17 @@ public class MemberService {
 
     private static final Duration INVITATION_TTL = Duration.ofDays(7);
 
+    private static final DateTimeFormatter INVITE_EXPIRY_FMT =
+            DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.ENGLISH)
+                    .withZone(ZoneId.of("America/Port_of_Spain"));
+
     private final TenantMembershipRepository memberships;
     private final UserInvitationRepository invitations;
     private final UserRepository users;
     private final TenantRepository tenants;
     private final AuditService audit;
     private final EmailSender email;
+    private final EmailTemplateRenderer templates;
     private final String appBaseUrl;
     private final boolean devTokenInResponse;
 
@@ -48,6 +59,7 @@ public class MemberService {
             TenantRepository tenants,
             AuditService audit,
             EmailSender email,
+            EmailTemplateRenderer templates,
             @org.springframework.beans.factory.annotation.Value("${konvo.public-base-url.app}") String appBaseUrl,
             @org.springframework.beans.factory.annotation.Value("${konvo.auth.dev-token-in-response:false}") boolean devTokenInResponse) {
         this.memberships = memberships;
@@ -56,6 +68,7 @@ public class MemberService {
         this.tenants = tenants;
         this.audit = audit;
         this.email = email;
+        this.templates = templates;
         this.devTokenInResponse = devTokenInResponse;
         this.appBaseUrl = appBaseUrl == null || appBaseUrl.isBlank()
                 ? "http://localhost:4200"
@@ -237,23 +250,34 @@ public class MemberService {
         tenantName = SafeText.singleLine(tenantName, "your workspace", 160);
         String inviterName = SafeText.singleLine(actor.fullName(), "A teammate", 160);
         String inviterEmail = SafeText.singleLine(actor.email(), "someone on your team", 160);
-        String link = appBaseUrl + "/invitations/" + rawToken;
-        this.email.send(new EmailSender.EmailMessage(
+        String inviterInitials = initialsOf(inviterName);
+        String inviteUrl = appBaseUrl + "/invitations/" + rawToken;
+        String declineUrl = appBaseUrl + "/invitations/decline/" + rawToken;
+        String expiresAt = INVITE_EXPIRY_FMT.format(Instant.now().plus(INVITATION_TTL));
+
+        String html = templates.render("team-invitation", Map.of(
+                "inviterName", inviterName,
+                "inviterInitials", inviterInitials,
+                "inviterEmail", inviterEmail,
+                "tenantName", tenantName,
+                "role", role,
+                "inviteUrl", inviteUrl,
+                "declineUrl", declineUrl,
+                "expiresAt", expiresAt,
+                "appUrl", appBaseUrl));
+
+        this.email.send(EmailSender.EmailMessage.html(
                 toEmail,
                 toEmail,
-                "Join " + tenantName + " on Konvo",
-                """
-                Hi,
+                inviterName + " invited you to join " + tenantName,
+                html));
+    }
 
-                %s (%s) invited you to join %s on Konvo as a %s.
-
-                Click the link below to set up your account — the invite
-                is good for 7 days.
-
-                %s
-
-                — The Konvo team
-                """.formatted(inviterName, inviterEmail, tenantName, role, link)));
+    private static String initialsOf(String fullName) {
+        if (fullName == null || fullName.isBlank()) return "?";
+        String[] parts = fullName.trim().split("\\s+");
+        if (parts.length == 1) return parts[0].substring(0, Math.min(2, parts[0].length())).toUpperCase();
+        return (parts[0].charAt(0) + "" + parts[parts.length - 1].charAt(0)).toUpperCase();
     }
 
     private MemberResponse toResponse(TenantMembership m) {

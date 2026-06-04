@@ -2,10 +2,9 @@ package com.vulkantechtt.konvo.email;
 
 /**
  * Outbound transactional email. Implementations come from
- * {@link EmailSenderConfig} based on {@code konvo.email.provider}. Plaintext
- * body only for M8 — HTML templates land when we have a marketing surface
- * with reusable layouts; the M8 messages are functional (password reset
- * link, invite link, "Vee paused" digest) and look fine as text.
+ * {@link EmailSenderConfig} based on {@code konvo.email.provider}.
+ * When {@code htmlBody} is non-null the message is sent as HTML/MIME;
+ * otherwise a plain-text message is sent.
  */
 public interface EmailSender {
 
@@ -19,6 +18,15 @@ public interface EmailSender {
             String toAddress,
             String toName,
             String subject,
-            String body) {
+            String textBody,
+            String htmlBody) {
+
+        public static EmailMessage html(String toAddress, String toName, String subject, String htmlBody) {
+            return new EmailMessage(toAddress, toName, subject, null, htmlBody);
+        }
+
+        public static EmailMessage plain(String toAddress, String toName, String subject, String textBody) {
+            return new EmailMessage(toAddress, toName, subject, textBody, null);
+        }
     }
 }

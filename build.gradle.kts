@@ -20,6 +20,7 @@ repositories {
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("org.springframework.boot:spring-boot-starter-security")
+    implementation("org.springframework.boot:spring-boot-starter-oauth2-client")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
@@ -48,8 +49,10 @@ dependencies {
     // (login + forgot-password). In-memory per-pod buckets (audit H-4).
     implementation("com.bucket4j:bucket4j_jdk17-core:8.14.0")
 
-    // Spring Mail for the M8 password-reset / invitation send paths.
+    // Spring Mail for password-reset / invitation / welcome send paths.
     implementation("org.springframework.boot:spring-boot-starter-mail")
+    // Thymeleaf for HTML email template rendering (not used as an MVC view engine).
+    implementation("org.springframework.boot:spring-boot-starter-thymeleaf")
 
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0")
 

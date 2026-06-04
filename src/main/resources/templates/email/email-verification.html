@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verify your email address</title>
+</head>
+<body style="margin:0;padding:0;background:#DCE3EF;font-family:'DM Sans',Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;background:#DCE3EF;">
+  <tr>
+    <td align="center" style="padding:40px 20px 60px;">
+      <table width="600" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 4px rgba(0,0,0,0.06),0 20px 60px rgba(0,0,0,0.12);max-width:600px;">
+
+        <!-- Gradient bar -->
+        <tr><td height="4" style="background:linear-gradient(135deg,#00BCD4 0%,#3F51B5 100%);font-size:0;line-height:0;">&nbsp;</td></tr>
+
+        <!-- Header -->
+        <tr>
+          <td bgcolor="#0B1020" style="padding:24px 40px;">
+            <svg width="30" height="30" viewBox="0 0 100 100" style="display:inline-block;vertical-align:middle;" aria-hidden="true"><rect x="22" y="18" width="14" height="71" rx="7" fill="#fff"/><path d="M34 52 L64 80 C67 83 64 90 58 87 L33 75 Z" fill="#fff"/><path d="M41 49 C37 47 37 42 41 40 L82 23 C86 21 89 25 87 29 L69 70 C67 74 62 73 60 69 L54 55 Z" fill="#1FD6EE"/></svg>
+            <span style="font-family:'Space Grotesk',Arial,sans-serif;font-weight:600;font-size:15px;color:#ffffff;vertical-align:middle;margin-left:10px;letter-spacing:-0.01em;">Konvelo</span>
+          </td>
+        </tr>
+
+        <!-- Body -->
+        <tr>
+          <td bgcolor="#ffffff" style="padding:48px 40px 40px;text-align:center;">
+            <!-- Shield icon circle -->
+            <table cellpadding="0" cellspacing="0" border="0" align="center" style="margin-bottom:28px;">
+              <tr>
+                <td width="72" height="72" align="center" valign="middle" bgcolor="#EEF0FB" style="border-radius:36px;border:1px solid #D6DBF1;">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#3F51B5" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+                </td>
+              </tr>
+            </table>
+            <p style="font-family:'Space Grotesk',Arial,sans-serif;font-weight:700;font-size:26px;color:#0B1020;margin:0 0 14px;letter-spacing:-0.02em;line-height:1.2;">Verify your email address</p>
+            <p style="font-family:'DM Sans',Arial,sans-serif;font-size:15.5px;color:#364164;margin:0 auto 36px;max-width:440px;line-height:1.7;">
+              Just one quick step. Click the button below to confirm your email — it keeps your account secure and gets you into Konvelo right away.
+            </p>
+            <!-- CTA button -->
+            <table cellpadding="0" cellspacing="0" border="0" align="center" style="margin-bottom:16px;">
+              <tr>
+                <td align="center" bgcolor="#3F51B5" style="border-radius:12px;box-shadow:0 6px 20px rgba(63,81,181,0.28);">
+                  <a th:href="${verifyUrl}" href="#" style="display:inline-block;padding:15px 40px;font-family:'Space Grotesk',Arial,sans-serif;font-weight:600;font-size:15px;color:#ffffff;text-decoration:none;letter-spacing:-0.01em;">Verify email address &#8594;</a>
+                </td>
+              </tr>
+            </table>
+            <p style="font-family:'DM Sans',Arial,sans-serif;font-size:13px;color:#9BA3B7;margin:0 0 32px;line-height:1.5;">This link expires in <strong style="color:#5A6480;">24 hours.</strong></p>
+            <!-- Divider -->
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:20px;"><tr><td height="1" bgcolor="#DEE3EE" style="font-size:0;line-height:0;">&nbsp;</td></tr></table>
+            <!-- Fallback link -->
+            <p style="font-family:'DM Sans',Arial,sans-serif;font-size:12.5px;color:#9BA3B7;margin:0;line-height:1.6;word-break:break-all;">
+              If the button doesn't work, copy this link into your browser:<br>
+              <a th:href="${verifyUrl}" th:text="${verifyUrl}" href="#" style="color:#3F51B5;text-decoration:underline;">verification link</a>
+            </p>
+          </td>
+        </tr>
+
+        <!-- Security note -->
+        <tr>
+          <td bgcolor="#F7F9FC" style="padding:20px 40px;border-top:1px solid #DEE3EE;">
+            <p style="font-family:'DM Sans',Arial,sans-serif;font-size:13px;color:#5A6480;margin:0;text-align:center;line-height:1.6;">
+              If you didn't create a Konvelo account, you can safely ignore this email.
+            </p>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td bgcolor="#F7F9FC" style="padding:0 40px 22px;">
+            <p style="font-family:'DM Sans',Arial,sans-serif;font-size:12px;color:#9BA3B7;margin:0 0 6px;text-align:center;line-height:1.6;">Konvelo &middot; Port of Spain, Trinidad &amp; Tobago</p>
+            <p style="font-family:'DM Sans',Arial,sans-serif;font-size:12px;color:#9BA3B7;margin:0;text-align:center;">
+              <a th:href="${appUrl} + '/privacy'" href="#" style="color:#5A6480;text-decoration:underline;">Privacy Policy</a>&nbsp;&nbsp;&middot;&nbsp;&nbsp;<a th:href="${appUrl} + '/help'" href="#" style="color:#5A6480;text-decoration:underline;">Help Centre</a>
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>

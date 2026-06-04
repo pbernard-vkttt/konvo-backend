@@ -12,6 +12,7 @@ import com.vulkantechtt.konvo.audit.AuditService;
 import com.vulkantechtt.konvo.auth.UserInvitationRepository;
 import com.vulkantechtt.konvo.common.KonvoException;
 import com.vulkantechtt.konvo.email.EmailSender;
+import com.vulkantechtt.konvo.email.EmailTemplateRenderer;
 import com.vulkantechtt.konvo.security.KonvoPrincipal;
 import com.vulkantechtt.konvo.tenants.Tenant;
 import com.vulkantechtt.konvo.tenants.TenantRepository;
@@ -34,6 +35,7 @@ class MemberServiceTest {
     @Mock TenantRepository tenants;
     @Mock AuditService audit;
     @Mock EmailSender email;
+    @Mock EmailTemplateRenderer templates;
 
     MemberService service;
 
@@ -48,6 +50,7 @@ class MemberServiceTest {
                 tenants,
                 audit,
                 email,
+                templates,
                 "http://app.test",
                 false);
     }
