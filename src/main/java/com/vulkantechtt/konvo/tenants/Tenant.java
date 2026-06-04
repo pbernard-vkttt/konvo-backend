@@ -15,6 +15,7 @@ public class Tenant extends BaseEntity {
     public static final int MAX_CUSTOMER_MEMORY_MESSAGE_LIMIT = 50;
     public static final int MAX_WORKING_HOURS_LENGTH = 10_000;
     public static final int MAX_BUSINESS_OFFERINGS_LENGTH = 50_000;
+    public static final int MAX_CUSTOM_SYSTEM_PROMPT_LENGTH = 300;
 
     @Column(name = "name", nullable = false, length = 120)
     private String name;
@@ -41,6 +42,9 @@ public class Tenant extends BaseEntity {
     @Column(name = "business_offerings", nullable = false, columnDefinition = "text")
     private String businessOfferings = "";
 
+    @Column(name = "custom_system_prompt", nullable = false, length = MAX_CUSTOM_SYSTEM_PROMPT_LENGTH)
+    private String customSystemPrompt = "";
+
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
 
@@ -66,4 +70,7 @@ public class Tenant extends BaseEntity {
 
     public String getBusinessOfferings() { return businessOfferings; }
     public void setBusinessOfferings(String businessOfferings) { this.businessOfferings = businessOfferings; }
+
+    public String getCustomSystemPrompt() { return customSystemPrompt; }
+    public void setCustomSystemPrompt(String customSystemPrompt) { this.customSystemPrompt = customSystemPrompt; }
 }

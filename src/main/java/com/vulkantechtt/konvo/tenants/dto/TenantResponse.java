@@ -13,5 +13,6 @@ public record TenantResponse(
         int customerMemoryMessageLimit,
         String workingHours,
         String businessOfferings,
+        String customSystemPrompt,
         Instant createdAt) {
 }

@@ -116,6 +116,7 @@ public class AiReplyListener {
         }
         Tenant tenant = tenants.findById(cmd.tenantId()).orElse(null);
         String workspaceName = tenant != null ? tenant.getName() : "this workspace";
+        String customSystemPrompt = tenant != null ? tenant.getCustomSystemPrompt() : "";
         int memoryLimit = tenant != null
                 ? tenant.getCustomerMemoryMessageLimit()
                 : Tenant.DEFAULT_CUSTOMER_MEMORY_MESSAGE_LIMIT;
@@ -123,7 +124,7 @@ public class AiReplyListener {
         long start = System.currentTimeMillis();
         try {
             List<KnowledgeRetriever.Hit> hits = retriever.topK(cmd.tenantId(), cmd.inboundBody(), TOP_K);
-            String system = PromptBuilder.systemPrompt(workspaceName, hits);
+            String system = PromptBuilder.systemPrompt(workspaceName, customSystemPrompt, hits);
             List<AiCompletionProvider.CompletionRequest.Turn> memoryTurns =
                     PromptBuilder.memoryTurns(previousMessages(cmd, memoryLimit));
             AiCompletionProvider.CompletionRequest req = new AiCompletionProvider.CompletionRequest(

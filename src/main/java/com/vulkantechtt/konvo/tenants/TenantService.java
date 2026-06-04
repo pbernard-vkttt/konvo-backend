@@ -40,27 +40,34 @@ public class TenantService {
         int oldLimit = tenant.getCustomerMemoryMessageLimit();
         String oldWorkingHours = safe(tenant.getWorkingHours());
         String oldBusinessOfferings = safe(tenant.getBusinessOfferings());
+        String oldCustomSystemPrompt = safe(tenant.getCustomSystemPrompt());
         int newLimit = req.customerMemoryMessageLimit();
         String newWorkingHours = req.workingHours() == null ? oldWorkingHours : normalize(req.workingHours());
         String newBusinessOfferings = req.businessOfferings() == null
                 ? oldBusinessOfferings
                 : normalize(req.businessOfferings());
+        String newCustomSystemPrompt = req.customSystemPrompt() == null
+                ? oldCustomSystemPrompt
+                : normalize(req.customSystemPrompt());
 
         tenant.setCustomerMemoryMessageLimit(newLimit);
         tenant.setWorkingHours(newWorkingHours);
         tenant.setBusinessOfferings(newBusinessOfferings);
+        tenant.setCustomSystemPrompt(newCustomSystemPrompt);
         Tenant saved = tenants.save(tenant);
         workspaceKnowledgeRollup.sync(actor, saved);
 
         if (oldLimit != newLimit
                 || !Objects.equals(oldWorkingHours, newWorkingHours)
-                || !Objects.equals(oldBusinessOfferings, newBusinessOfferings)) {
+                || !Objects.equals(oldBusinessOfferings, newBusinessOfferings)
+                || !Objects.equals(oldCustomSystemPrompt, newCustomSystemPrompt)) {
             audit.record(actor, AuditAction.WORKSPACE_SETTINGS_UPDATED, saved.getId(),
                     "Updated workspace settings",
                     Map.of(
                             "customerMemoryMessageLimit", Map.of("from", oldLimit, "to", newLimit),
                             "workingHoursChanged", !Objects.equals(oldWorkingHours, newWorkingHours),
-                            "businessOfferingsChanged", !Objects.equals(oldBusinessOfferings, newBusinessOfferings)));
+                            "businessOfferingsChanged", !Objects.equals(oldBusinessOfferings, newBusinessOfferings),
+                            "customSystemPromptChanged", !Objects.equals(oldCustomSystemPrompt, newCustomSystemPrompt)));
         }
         return toResponse(saved);
     }
@@ -81,6 +88,7 @@ public class TenantService {
                 tenant.getCustomerMemoryMessageLimit(),
                 safe(tenant.getWorkingHours()),
                 safe(tenant.getBusinessOfferings()),
+                safe(tenant.getCustomSystemPrompt()),
                 tenant.getCreatedAt());
     }
 

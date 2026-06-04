@@ -16,5 +16,8 @@ public record UpdateTenantSettingsRequest(
         String workingHours,
 
         @Size(max = Tenant.MAX_BUSINESS_OFFERINGS_LENGTH)
-        String businessOfferings) {
+        String businessOfferings,
+
+        @Size(max = Tenant.MAX_CUSTOM_SYSTEM_PROMPT_LENGTH)
+        String customSystemPrompt) {
 }

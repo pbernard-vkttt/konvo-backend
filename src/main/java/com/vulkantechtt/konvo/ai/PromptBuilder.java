@@ -20,14 +20,26 @@ public final class PromptBuilder {
             Never invent facts. If the answer isn't in the context below, say you'll get the team to follow up.
             Use the recent conversation history only to understand what the customer and team already discussed.
             """;
+    private static final String CUSTOM_PROMPT_PREFIX = "WORKSPACE CUSTOM INSTRUCTIONS:";
     private static final int MAX_MEMORY_TURN_CHARS = 1_000;
 
     private PromptBuilder() {}
 
-    public static String systemPrompt(String workspaceName, List<KnowledgeRetriever.Hit> hits) {
+    public static String systemPrompt(
+            String workspaceName,
+            String customSystemPrompt,
+            List<KnowledgeRetriever.Hit> hits) {
         StringBuilder sb = new StringBuilder();
         sb.append(PERSONA.formatted(SafeText.singleLine(workspaceName, "this workspace", 160)).strip())
                 .append("\n\n");
+        String customPrompt = SafeText.singleLine(
+                customSystemPrompt, "", com.vulkantechtt.konvo.tenants.Tenant.MAX_CUSTOM_SYSTEM_PROMPT_LENGTH);
+        if (!customPrompt.isBlank()) {
+            sb.append(CUSTOM_PROMPT_PREFIX)
+                    .append(' ')
+                    .append(customPrompt)
+                    .append("\n\n");
+        }
         if (hits.isEmpty()) {
             sb.append("CONTEXT: (no knowledge base entries found for this query)");
         } else {

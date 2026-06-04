@@ -41,6 +41,7 @@ class TenantServiceTest {
         Tenant tenant = tenant(tenantId, 18);
         tenant.setWorkingHours("Mon-Fri, 9 am to 5 pm");
         tenant.setBusinessOfferings("Lunch menu and catering trays");
+        tenant.setCustomSystemPrompt("Keep answers short.");
         when(tenants.findById(tenantId)).thenReturn(Optional.of(tenant));
 
         var response = service.me(tenantId);
@@ -48,6 +49,7 @@ class TenantServiceTest {
         assertThat(response.customerMemoryMessageLimit()).isEqualTo(18);
         assertThat(response.workingHours()).isEqualTo("Mon-Fri, 9 am to 5 pm");
         assertThat(response.businessOfferings()).isEqualTo("Lunch menu and catering trays");
+        assertThat(response.customSystemPrompt()).isEqualTo("Keep answers short.");
     }
 
     @Test
@@ -62,11 +64,13 @@ class TenantServiceTest {
                 new UpdateTenantSettingsRequest(
                         24,
                         " Mon-Fri, 9 am to 5 pm ",
-                        "Breakfast menu\nLunch specials"));
+                        "Breakfast menu\nLunch specials",
+                        " Keep answers short and mention curbside pickup. "));
 
         assertThat(response.customerMemoryMessageLimit()).isEqualTo(24);
         assertThat(response.workingHours()).isEqualTo("Mon-Fri, 9 am to 5 pm");
         assertThat(response.businessOfferings()).isEqualTo("Breakfast menu\nLunch specials");
+        assertThat(response.customSystemPrompt()).isEqualTo("Keep answers short and mention curbside pickup.");
         verify(workspaceKnowledgeRollup).sync(any(KonvoPrincipal.class), org.mockito.ArgumentMatchers.same(tenant));
         verify(audit).record(
                 any(KonvoPrincipal.class),
@@ -83,7 +87,7 @@ class TenantServiceTest {
         when(tenants.findById(tenantId)).thenReturn(Optional.of(tenant));
         when(tenants.save(any(Tenant.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        service.updateSettings(principal(tenantId), new UpdateTenantSettingsRequest(12, "", ""));
+        service.updateSettings(principal(tenantId), new UpdateTenantSettingsRequest(12, "", "", ""));
 
         verify(audit, never()).record(any(), any(), any(), any(), any());
     }
@@ -94,15 +98,17 @@ class TenantServiceTest {
         Tenant tenant = tenant(tenantId, 12);
         tenant.setWorkingHours("Mon-Fri, 9 am to 5 pm");
         tenant.setBusinessOfferings("Lunch menu");
+        tenant.setCustomSystemPrompt("Answer politely.");
         when(tenants.findById(tenantId)).thenReturn(Optional.of(tenant));
         when(tenants.save(any(Tenant.class))).thenAnswer(inv -> inv.getArgument(0));
 
         var response = service.updateSettings(
                 principal(tenantId),
-                new UpdateTenantSettingsRequest(20, null, null));
+                new UpdateTenantSettingsRequest(20, null, null, null));
 
         assertThat(response.workingHours()).isEqualTo("Mon-Fri, 9 am to 5 pm");
         assertThat(response.businessOfferings()).isEqualTo("Lunch menu");
+        assertThat(response.customSystemPrompt()).isEqualTo("Answer politely.");
     }
 
     private static Tenant tenant(UUID id, int memoryLimit) {
