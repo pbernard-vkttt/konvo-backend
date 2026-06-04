@@ -104,6 +104,6 @@ class AuthControllerTest {
                 "access",
                 900,
                 new AuthSessionResponse.UserSummary(UUID.randomUUID(), "owner@example.com", "Owner"),
-                new AuthSessionResponse.TenantSummary(UUID.randomUUID(), "Workspace", "workspace", Role.OWNER));
+                new AuthSessionResponse.TenantSummary(UUID.randomUUID(), "Workspace", "workspace", Role.OWNER, true));
     }
 }

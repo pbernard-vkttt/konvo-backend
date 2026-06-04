@@ -12,5 +12,5 @@ public record AuthSessionResponse(
 
     public record UserSummary(UUID id, String email, String fullName) {}
 
-    public record TenantSummary(UUID id, String name, String slug, Role role) {}
+    public record TenantSummary(UUID id, String name, String slug, Role role, boolean onboardingCompleted) {}
 }

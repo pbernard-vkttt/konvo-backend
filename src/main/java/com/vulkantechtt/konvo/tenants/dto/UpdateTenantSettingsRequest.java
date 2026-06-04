@@ -19,5 +19,8 @@ public record UpdateTenantSettingsRequest(
         String businessOfferings,
 
         @Size(max = Tenant.MAX_CUSTOM_SYSTEM_PROMPT_LENGTH)
-        String customSystemPrompt) {
+        String customSystemPrompt,
+
+        @Size(max = 80)
+        String industry) {
 }

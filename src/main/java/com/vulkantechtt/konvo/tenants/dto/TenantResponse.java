@@ -14,5 +14,7 @@ public record TenantResponse(
         String workingHours,
         String businessOfferings,
         String customSystemPrompt,
+        String industry,
+        boolean onboardingCompleted,
         Instant createdAt) {
 }

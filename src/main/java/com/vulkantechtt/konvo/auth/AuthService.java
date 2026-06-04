@@ -621,7 +621,7 @@ public class AuthService {
                 access,
                 ttlSeconds,
                 new UserSummary(user.getId(), user.getEmail(), user.getFullName()),
-                new TenantSummary(m.getTenant().getId(), m.getTenant().getName(), m.getTenant().getSlug(), m.getRole()));
+                new TenantSummary(m.getTenant().getId(), m.getTenant().getName(), m.getTenant().getSlug(), m.getRole(), m.getTenant().isOnboardingCompleted()));
     }
 
     static String firstNameOf(String fullName) {

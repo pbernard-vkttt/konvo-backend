@@ -4,10 +4,12 @@ import com.vulkantechtt.konvo.security.KonvoPrincipal;
 import com.vulkantechtt.konvo.tenants.dto.TenantResponse;
 import com.vulkantechtt.konvo.tenants.dto.UpdateTenantSettingsRequest;
 import jakarta.validation.Valid;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -34,5 +36,12 @@ public class TenantController {
             @AuthenticationPrincipal KonvoPrincipal principal,
             @Valid @RequestBody UpdateTenantSettingsRequest req) {
         return tenantService.updateSettings(principal, req);
+    }
+
+    @PostMapping("/me/onboarding/complete")
+    @PreAuthorize("hasRole('OWNER')")
+    public ResponseEntity<TenantResponse> completeOnboarding(
+            @AuthenticationPrincipal KonvoPrincipal principal) {
+        return ResponseEntity.ok(tenantService.completeOnboarding(principal));
     }
 }

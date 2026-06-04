@@ -65,7 +65,8 @@ class TenantServiceTest {
                         24,
                         " Mon-Fri, 9 am to 5 pm ",
                         "Breakfast menu\nLunch specials",
-                        " Keep answers short and mention curbside pickup. "));
+                        " Keep answers short and mention curbside pickup. ",
+                        null));
 
         assertThat(response.customerMemoryMessageLimit()).isEqualTo(24);
         assertThat(response.workingHours()).isEqualTo("Mon-Fri, 9 am to 5 pm");
@@ -87,7 +88,7 @@ class TenantServiceTest {
         when(tenants.findById(tenantId)).thenReturn(Optional.of(tenant));
         when(tenants.save(any(Tenant.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        service.updateSettings(principal(tenantId), new UpdateTenantSettingsRequest(12, "", "", ""));
+        service.updateSettings(principal(tenantId), new UpdateTenantSettingsRequest(12, "", "", "", null));
 
         verify(audit, never()).record(any(), any(), any(), any(), any());
     }
@@ -104,7 +105,7 @@ class TenantServiceTest {
 
         var response = service.updateSettings(
                 principal(tenantId),
-                new UpdateTenantSettingsRequest(20, null, null, null));
+                new UpdateTenantSettingsRequest(20, null, null, null, null));
 
         assertThat(response.workingHours()).isEqualTo("Mon-Fri, 9 am to 5 pm");
         assertThat(response.businessOfferings()).isEqualTo("Lunch menu");

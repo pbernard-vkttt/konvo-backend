@@ -41,6 +41,7 @@ public class TenantService {
         String oldWorkingHours = safe(tenant.getWorkingHours());
         String oldBusinessOfferings = safe(tenant.getBusinessOfferings());
         String oldCustomSystemPrompt = safe(tenant.getCustomSystemPrompt());
+        String oldIndustry = safe(tenant.getIndustry());
         int newLimit = req.customerMemoryMessageLimit();
         String newWorkingHours = req.workingHours() == null ? oldWorkingHours : normalize(req.workingHours());
         String newBusinessOfferings = req.businessOfferings() == null
@@ -49,26 +50,40 @@ public class TenantService {
         String newCustomSystemPrompt = req.customSystemPrompt() == null
                 ? oldCustomSystemPrompt
                 : normalize(req.customSystemPrompt());
+        String newIndustry = req.industry() == null ? oldIndustry : req.industry().strip();
 
         tenant.setCustomerMemoryMessageLimit(newLimit);
         tenant.setWorkingHours(newWorkingHours);
         tenant.setBusinessOfferings(newBusinessOfferings);
         tenant.setCustomSystemPrompt(newCustomSystemPrompt);
+        tenant.setIndustry(newIndustry);
         Tenant saved = tenants.save(tenant);
         workspaceKnowledgeRollup.sync(actor, saved);
 
         if (oldLimit != newLimit
                 || !Objects.equals(oldWorkingHours, newWorkingHours)
                 || !Objects.equals(oldBusinessOfferings, newBusinessOfferings)
-                || !Objects.equals(oldCustomSystemPrompt, newCustomSystemPrompt)) {
+                || !Objects.equals(oldCustomSystemPrompt, newCustomSystemPrompt)
+                || !Objects.equals(oldIndustry, newIndustry)) {
             audit.record(actor, AuditAction.WORKSPACE_SETTINGS_UPDATED, saved.getId(),
                     "Updated workspace settings",
                     Map.of(
                             "customerMemoryMessageLimit", Map.of("from", oldLimit, "to", newLimit),
                             "workingHoursChanged", !Objects.equals(oldWorkingHours, newWorkingHours),
                             "businessOfferingsChanged", !Objects.equals(oldBusinessOfferings, newBusinessOfferings),
-                            "customSystemPromptChanged", !Objects.equals(oldCustomSystemPrompt, newCustomSystemPrompt)));
+                            "customSystemPromptChanged", !Objects.equals(oldCustomSystemPrompt, newCustomSystemPrompt),
+                            "industryChanged", !Objects.equals(oldIndustry, newIndustry)));
         }
+        return toResponse(saved);
+    }
+
+    @Transactional
+    public TenantResponse completeOnboarding(KonvoPrincipal actor) {
+        Tenant tenant = requireTenant(actor.tenantId());
+        tenant.setOnboardingCompleted(true);
+        Tenant saved = tenants.save(tenant);
+        audit.record(actor, AuditAction.WORKSPACE_SETTINGS_UPDATED, saved.getId(),
+                "Onboarding completed", Map.of());
         return toResponse(saved);
     }
 
@@ -89,6 +104,8 @@ public class TenantService {
                 safe(tenant.getWorkingHours()),
                 safe(tenant.getBusinessOfferings()),
                 safe(tenant.getCustomSystemPrompt()),
+                safe(tenant.getIndustry()),
+                tenant.isOnboardingCompleted(),
                 tenant.getCreatedAt());
     }
 

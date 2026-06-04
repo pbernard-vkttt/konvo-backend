@@ -45,6 +45,12 @@ public class Tenant extends BaseEntity {
     @Column(name = "custom_system_prompt", nullable = false, length = MAX_CUSTOM_SYSTEM_PROMPT_LENGTH)
     private String customSystemPrompt = "";
 
+    @Column(name = "industry", nullable = false, length = 80)
+    private String industry = "";
+
+    @Column(name = "onboarding_completed", nullable = false)
+    private boolean onboardingCompleted = false;
+
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
 
@@ -73,4 +79,10 @@ public class Tenant extends BaseEntity {
 
     public String getCustomSystemPrompt() { return customSystemPrompt; }
     public void setCustomSystemPrompt(String customSystemPrompt) { this.customSystemPrompt = customSystemPrompt; }
+
+    public String getIndustry() { return industry; }
+    public void setIndustry(String industry) { this.industry = industry; }
+
+    public boolean isOnboardingCompleted() { return onboardingCompleted; }
+    public void setOnboardingCompleted(boolean onboardingCompleted) { this.onboardingCompleted = onboardingCompleted; }
 }
