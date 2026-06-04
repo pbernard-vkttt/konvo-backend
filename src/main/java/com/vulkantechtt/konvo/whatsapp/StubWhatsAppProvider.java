@@ -43,6 +43,15 @@ public class StubWhatsAppProvider implements WhatsAppProvider {
     }
 
     @Override
+    public CreateTemplateResult createTemplate(CreateTemplateCommand cmd) {
+        String id = "stub-meta-template-" + UUID.randomUUID();
+        log.info("[stub-whatsapp] create-template channel={} name={} language={} category={} components={} -> id={}",
+                cmd.channelId(), cmd.name(), cmd.language(), cmd.category(),
+                cmd.components() == null ? 0 : cmd.components().size(), id);
+        return new CreateTemplateResult(id, "PENDING");
+    }
+
+    @Override
     public List<TemplateSummary> listTemplates(UUID channelId) {
         // No real Meta connection; templates are sync-from-Meta only.
         return List.of();

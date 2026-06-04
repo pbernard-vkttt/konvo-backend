@@ -20,6 +20,10 @@ public interface WhatsAppProvider {
      *  the 24-hour customer-service window. */
     SendResult sendTemplate(SendTemplateCommand cmd);
 
+    /** Create a new template under the channel's WABA and submit it to Meta
+     *  for review/approval. */
+    CreateTemplateResult createTemplate(CreateTemplateCommand cmd);
+
     /** List the WhatsApp message templates Meta knows about for this
      *  channel's WABA. Stub returns an empty list — Meta is the only
      *  provider that can answer meaningfully. */
@@ -47,7 +51,16 @@ public interface WhatsAppProvider {
             String language,
             List<String> bodyParameters) {}
 
+    record CreateTemplateCommand(
+            UUID channelId,
+            String name,
+            String language,
+            String category,
+            List<java.util.Map<String, Object>> components) {}
+
     record SendResult(String providerMessageId, String status) {}
+
+    record CreateTemplateResult(String metaTemplateId, String status) {}
 
     /** What we surface from Meta's template list so the sync service can
      *  upsert without caring about JSON shape. */

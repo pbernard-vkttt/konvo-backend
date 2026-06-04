@@ -17,6 +17,7 @@ public enum AuditAction {
 
     WORKSPACE_SETTINGS_UPDATED("workspace.settings.updated", "tenant"),
 
+    TEMPLATE_CREATED("template.created", "template"),
     TEMPLATE_SYNCED("template.synced", "template"),
     TEMPLATE_SENT("template.sent", "template"),
 

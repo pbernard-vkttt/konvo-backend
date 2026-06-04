@@ -2,6 +2,7 @@ package com.vulkantechtt.konvo.templates;
 
 import com.vulkantechtt.konvo.common.PageResponse;
 import com.vulkantechtt.konvo.security.KonvoPrincipal;
+import com.vulkantechtt.konvo.templates.dto.CreateTemplateRequest;
 import com.vulkantechtt.konvo.templates.dto.SendTemplateRequest;
 import com.vulkantechtt.konvo.templates.dto.TemplateResponse;
 import jakarta.validation.Valid;
@@ -32,6 +33,14 @@ public class TemplateController {
             @AuthenticationPrincipal KonvoPrincipal principal,
             Pageable pageable) {
         return service.list(principal, pageable);
+    }
+
+    @PostMapping
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
+    public TemplateResponse create(
+            @AuthenticationPrincipal KonvoPrincipal principal,
+            @Valid @RequestBody CreateTemplateRequest req) {
+        return service.create(principal, req);
     }
 
     @PostMapping("/sync")

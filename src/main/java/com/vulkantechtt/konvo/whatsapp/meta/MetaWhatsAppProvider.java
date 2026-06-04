@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -178,6 +179,54 @@ public class MetaWhatsAppProvider implements WhatsAppProvider {
     }
 
     @Override
+    public CreateTemplateResult createTemplate(CreateTemplateCommand cmd) {
+        Channel ch = channels.findById(cmd.channelId())
+                .orElseThrow(() -> KonvoException.notFound("Channel", cmd.channelId()));
+        if (ch.getWabaId() == null || ch.getWabaId().isBlank()) {
+            throw KonvoException.badRequest("This channel has no WhatsApp Business Account id");
+        }
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("name", cmd.name());
+        body.put("language", cmd.language());
+        body.put("category", cmd.category());
+        body.put("components", cmd.components());
+
+        String path = "/" + props.getGraphApiVersion() + "/" + ch.getWabaId() + "/message_templates";
+        try {
+            MetaCreateTemplateResponse resp = http.post()
+                    .uri(path)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + ch.getAccessToken())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body)
+                    .retrieve()
+                    .body(MetaCreateTemplateResponse.class);
+            if (resp == null || resp.id() == null || resp.id().isBlank()) {
+                log.warn("Meta create-template returned no template id channel={} name={}", cmd.channelId(), cmd.name());
+                return new CreateTemplateResult(null, "PENDING");
+            }
+            return new CreateTemplateResult(resp.id(), resp.status());
+        } catch (RestClientResponseException e) {
+            int status = e.getStatusCode().value();
+            log.warn("Meta create-template failed channel={} status={} body={}",
+                    cmd.channelId(), status, e.getResponseBodyAsString());
+            if (status == HttpStatus.UNAUTHORIZED.value() || status == HttpStatus.FORBIDDEN.value()) {
+                throw KonvoException.forbidden("WhatsApp credentials were rejected by Meta");
+            }
+            if (status >= 400 && status < 500) {
+                throw KonvoException.badRequest(metaErrorMessage(e.getResponseBodyAsString(),
+                        "Meta rejected this template submission"));
+            }
+            throw new KonvoException(HttpStatus.BAD_GATEWAY, "template_create_failed",
+                    "Template creation failed: " + e.getMessage());
+        } catch (RestClientException e) {
+            log.warn("Meta create-template transport error channel={}: {}", cmd.channelId(), e.toString());
+            throw new KonvoException(HttpStatus.BAD_GATEWAY, "template_create_failed",
+                    "Template creation failed: " + e.getMessage());
+        }
+    }
+
+    @Override
     public List<TemplateSummary> listTemplates(UUID channelId) {
         Channel ch = channels.findById(channelId)
                 .orElseThrow(() -> KonvoException.notFound("Channel", channelId));
@@ -241,5 +290,20 @@ public class MetaWhatsAppProvider implements WhatsAppProvider {
     record MetaTemplateListResponse(List<Row> data) {
         record Row(String id, String name, String language, String category, String status,
                    List<Map<String, Object>> components) {}
+    }
+
+    record MetaCreateTemplateResponse(String id, String status, String category) {}
+
+    private String metaErrorMessage(String body, String fallback) {
+        try {
+            JsonNode root = json.readTree(body);
+            JsonNode message = root.path("error").path("message");
+            if (message.isTextual() && !message.asText().isBlank()) {
+                return message.asText();
+            }
+        } catch (Exception ignored) {
+            // Fall through to the generic fallback.
+        }
+        return fallback;
     }
 }

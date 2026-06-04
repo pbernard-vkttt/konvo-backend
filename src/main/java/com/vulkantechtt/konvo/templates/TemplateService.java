@@ -17,17 +17,24 @@ import com.vulkantechtt.konvo.customers.Customer;
 import com.vulkantechtt.konvo.customers.CustomerRepository;
 import com.vulkantechtt.konvo.realtime.SseHub;
 import com.vulkantechtt.konvo.security.KonvoPrincipal;
+import com.vulkantechtt.konvo.templates.dto.CreateTemplateRequest;
 import com.vulkantechtt.konvo.templates.dto.SendTemplateRequest;
 import com.vulkantechtt.konvo.templates.dto.TemplateResponse;
 import com.vulkantechtt.konvo.whatsapp.WhatsAppProvider;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * Listing, syncing-from-Meta, and sending of {@link MessageTemplate}s.
@@ -41,6 +48,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class TemplateService {
 
     private static final Logger log = LoggerFactory.getLogger(TemplateService.class);
+    private static final Pattern PLACEHOLDER = Pattern.compile("\\{\\{(\\d+)}}");
 
     private final MessageTemplateRepository templates;
     private final ChannelRepository channels;
@@ -50,6 +58,7 @@ public class TemplateService {
     private final WhatsAppProvider provider;
     private final SseHub sseHub;
     private final AuditService audit;
+    private final ObjectMapper json;
 
     public TemplateService(
             MessageTemplateRepository templates,
@@ -59,7 +68,8 @@ public class TemplateService {
             MessageRepository messages,
             WhatsAppProvider provider,
             SseHub sseHub,
-            AuditService audit) {
+            AuditService audit,
+            ObjectMapper json) {
         this.templates = templates;
         this.channels = channels;
         this.conversations = conversations;
@@ -68,6 +78,7 @@ public class TemplateService {
         this.provider = provider;
         this.sseHub = sseHub;
         this.audit = audit;
+        this.json = json;
     }
 
     @Transactional(readOnly = true)
@@ -75,6 +86,40 @@ public class TemplateService {
         return PageResponse.from(templates
                 .findByTenantIdOrderByNameAsc(principal.tenantId(), pageable)
                 .map(TemplateService::toResponse));
+    }
+
+    @Transactional
+    public TemplateResponse create(KonvoPrincipal principal, CreateTemplateRequest req) {
+        String name = req.name().trim();
+        String language = req.language().trim();
+        if (templates.findByTenantIdAndNameAndLanguage(principal.tenantId(), name, language).isPresent()) {
+            throw KonvoException.badRequest("A template with this name and language already exists. Sync from Meta if it was created elsewhere.");
+        }
+
+        Channel channel = connectedWhatsAppChannel(principal.tenantId());
+        List<Map<String, Object>> components = buildTextComponents(req);
+        String componentsJson = toCanonicalJson(components);
+
+        WhatsAppProvider.CreateTemplateResult result = provider.createTemplate(new WhatsAppProvider.CreateTemplateCommand(
+                channel.getId(),
+                name,
+                language,
+                req.category().name().toUpperCase(),
+                components));
+
+        MessageTemplate saved = upsertTemplate(
+                principal.tenantId(),
+                name,
+                language,
+                req.category(),
+                parseStatus(result.status()),
+                result.metaTemplateId(),
+                componentsJson);
+
+        audit.record(principal, AuditAction.TEMPLATE_CREATED, saved.getId(),
+                "Created template " + name + " and submitted it to Meta for approval",
+                Map.of("name", name, "language", language, "category", req.category().name()));
+        return toResponse(saved);
     }
 
     /**
@@ -93,19 +138,14 @@ public class TemplateService {
         for (Channel channel : tenantChannels) {
             List<WhatsAppProvider.TemplateSummary> remote = provider.listTemplates(channel.getId());
             for (WhatsAppProvider.TemplateSummary row : remote) {
-                MessageTemplate t = templates
-                        .findByTenantIdAndNameAndLanguage(principal.tenantId(), row.name(), row.language())
-                        .orElseGet(MessageTemplate::new);
-                if (t.getTenantId() == null) {
-                    t.setTenantId(principal.tenantId());
-                    t.setName(row.name());
-                    t.setLanguage(row.language());
-                }
-                t.setCategory(parseCategory(row.category()));
-                t.setStatus(parseStatus(row.status()));
-                t.setMetaTemplateId(row.metaId());
-                t.setComponents(row.componentsJson());
-                templates.save(t);
+                upsertTemplate(
+                        principal.tenantId(),
+                        row.name(),
+                        row.language(),
+                        parseCategory(row.category()),
+                        parseStatus(row.status()),
+                        row.metaId(),
+                        row.componentsJson());
                 total++;
             }
         }
@@ -176,6 +216,122 @@ public class TemplateService {
     }
 
     // -- helpers -------------------------------------------------------------
+
+    private Channel connectedWhatsAppChannel(UUID tenantId) {
+        return channels.findByTenantId(tenantId).stream()
+                .filter(ch -> ch.getProvider() != null && ch.getProvider().name().startsWith("whatsapp"))
+                .findFirst()
+                .orElseThrow(() -> KonvoException.badRequest("Connect a WhatsApp channel before creating templates"));
+    }
+
+    private MessageTemplate upsertTemplate(
+            UUID tenantId,
+            String name,
+            String language,
+            TemplateCategory category,
+            TemplateStatus status,
+            String metaTemplateId,
+            String componentsJson) {
+        MessageTemplate t = templates
+                .findByTenantIdAndNameAndLanguage(tenantId, name, language)
+                .orElseGet(MessageTemplate::new);
+        if (t.getTenantId() == null) {
+            t.setTenantId(tenantId);
+            t.setName(name);
+            t.setLanguage(language);
+        }
+        t.setCategory(category);
+        t.setStatus(status);
+        t.setMetaTemplateId(metaTemplateId);
+        t.setComponents(componentsJson);
+        return templates.save(t);
+    }
+
+    private List<Map<String, Object>> buildTextComponents(CreateTemplateRequest req) {
+        List<Map<String, Object>> components = new ArrayList<>();
+
+        String headerText = trimToNull(req.headerText());
+        List<String> headerExamples = sanitiseExamples(req.headerExamples());
+        if (headerText != null) {
+            LinkedHashMap<String, Object> header = new LinkedHashMap<>();
+            header.put("type", "HEADER");
+            header.put("format", "TEXT");
+            header.put("text", headerText);
+            int headerVars = countPlaceholders(headerText);
+            validateExamples("Header examples", headerVars, headerExamples);
+            if (headerVars > 0) {
+                header.put("example", Map.of("header_text", headerExamples));
+            }
+            components.add(header);
+        } else if (!headerExamples.isEmpty()) {
+            throw KonvoException.badRequest("Header examples require header text");
+        }
+
+        String bodyText = req.bodyText().trim();
+        List<String> bodyExamples = sanitiseExamples(req.bodyExamples());
+        int bodyVars = countPlaceholders(bodyText);
+        validateExamples("Body examples", bodyVars, bodyExamples);
+
+        LinkedHashMap<String, Object> body = new LinkedHashMap<>();
+        body.put("type", "BODY");
+        body.put("text", bodyText);
+        if (bodyVars > 0) {
+            body.put("example", Map.of("body_text", List.of(bodyExamples)));
+        }
+        components.add(body);
+
+        String footerText = trimToNull(req.footerText());
+        if (footerText != null) {
+            components.add(Map.of("type", "FOOTER", "text", footerText));
+        }
+
+        return components;
+    }
+
+    private static List<String> sanitiseExamples(List<String> examples) {
+        if (examples == null || examples.isEmpty()) return List.of();
+        return examples.stream()
+                .map(TemplateService::trimToNull)
+                .filter(v -> v != null)
+                .toList();
+    }
+
+    private static String trimToNull(String value) {
+        if (value == null) return null;
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private static void validateExamples(String label, int placeholders, List<String> examples) {
+        if (placeholders == 0 && !examples.isEmpty()) {
+            throw KonvoException.badRequest(label + " are only allowed when the text includes {{1}} placeholders");
+        }
+        if (placeholders > 0 && examples.size() != placeholders) {
+            throw KonvoException.badRequest(label + " must include exactly " + placeholders + " sample value(s)");
+        }
+    }
+
+    private static int countPlaceholders(String text) {
+        Matcher matcher = PLACEHOLDER.matcher(text);
+        int expected = 0;
+        while (matcher.find()) {
+            int index = Integer.parseInt(matcher.group(1));
+            if (index != expected + 1) {
+                throw KonvoException.badRequest("Template placeholders must be sequential starting at {{1}}");
+            }
+            expected = index;
+        }
+        return expected;
+    }
+
+    private String toCanonicalJson(List<Map<String, Object>> components) {
+        try {
+            return json.valueToTree(components).toString();
+        } catch (RuntimeException e) {
+            throw new KonvoException(org.springframework.http.HttpStatus.BAD_REQUEST, "template_payload_invalid",
+                    "Could not build the template payload");
+        }
+    }
 
     private Resolved resolveTarget(KonvoPrincipal principal, SendTemplateRequest req) {
         if (req.conversationId() != null) {
