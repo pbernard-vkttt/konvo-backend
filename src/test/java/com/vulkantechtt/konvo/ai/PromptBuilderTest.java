@@ -10,11 +10,12 @@ import org.junit.jupiter.api.Test;
 class PromptBuilderTest {
 
     @Test
-    void includesWorkspaceNameAndTriniGuidance() {
-        String prompt = PromptBuilder.systemPrompt("Doubles King", List.of());
-        assertThat(prompt).contains("Doubles King");
-        assertThat(prompt).contains("Trini");
+    void includesWorkspaceNameAndVoiceGuidance() {
+        String prompt = PromptBuilder.systemPrompt("Acme Co", List.of());
+        assertThat(prompt).contains("Acme Co");
+        assertThat(prompt).contains("plain, professional English");
         assertThat(prompt).contains("Never invent facts");
+        assertThat(prompt).doesNotContain("Trini");
     }
 
     @Test

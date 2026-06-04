@@ -17,7 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Tenant-scoped channel CRUD. The webhook URL exposed to the UI is built from
  * the configured API base URL plus the channel id, so a tenant can paste
- * something like {@code https://api.konvo.tt/api/webhooks/meta/{id}} into the
+ * something like {@code https://api.konvelo.io/api/webhooks/meta/{id}} into the
  * Meta dashboard. The webhook verify token is generated server-side and shown
  * to the user once (it's safe to re-show because it's used for the GET
  * challenge, not for signature verification — that's the app_secret).

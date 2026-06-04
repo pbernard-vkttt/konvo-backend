@@ -125,7 +125,7 @@ konvo:
     bus: ${KONVO_REALTIME_BUS:local}
   email:
     provider: ${KONVO_EMAIL_PROVIDER:stub}
-    from: ${KONVO_EMAIL_FROM:no-reply@konvo.tt}
+    from: ${KONVO_EMAIL_FROM:no-reply@konvelo.io}
   auth:
     dev-token-in-response: ${KONVO_AUTH_DEV_TOKEN_IN_RESPONSE:false}
   # Per-IP + per-email token-bucket throttling on the public auth endpoints

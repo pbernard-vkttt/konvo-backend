@@ -25,7 +25,7 @@ public class EmailSenderConfig {
     @Bean
     public EmailSender emailSender(
             @Value("${konvo.email.provider:stub}") String provider,
-            @Value("${konvo.email.from:no-reply@konvo.tt}") String fromAddress,
+            @Value("${konvo.email.from:no-reply@konvelo.io}") String fromAddress,
             ObjectProvider<JavaMailSender> mailSender) {
         String key = provider == null ? "stub" : provider.toLowerCase();
         return switch (key) {

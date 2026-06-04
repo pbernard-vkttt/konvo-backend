@@ -17,11 +17,11 @@ class RateLimitGuardTest {
         // must be rejected (the per-IP limit of 15 hasn't tripped yet).
         for (int i = 0; i < 8; i++) {
             int attempt = i;
-            assertThatCode(() -> guard.checkLogin("10.0.0.1", "victim@konvo.tt"))
+            assertThatCode(() -> guard.checkLogin("10.0.0.1", "victim@konvelo.io"))
                     .as("attempt %d", attempt)
                     .doesNotThrowAnyException();
         }
-        assertThatThrownBy(() -> guard.checkLogin("10.0.0.1", "victim@konvo.tt"))
+        assertThatThrownBy(() -> guard.checkLogin("10.0.0.1", "victim@konvelo.io"))
                 .isInstanceOf(KonvoException.class);
     }
 
@@ -31,9 +31,9 @@ class RateLimitGuardTest {
         // Distinct emails each time so the per-email limit never trips; the
         // per-IP limit (15) is what should fire on the 16th request.
         for (int i = 0; i < 15; i++) {
-            guard.checkLogin("10.0.0.2", "user" + i + "@konvo.tt");
+            guard.checkLogin("10.0.0.2", "user" + i + "@konvelo.io");
         }
-        assertThatThrownBy(() -> guard.checkLogin("10.0.0.2", "user-last@konvo.tt"))
+        assertThatThrownBy(() -> guard.checkLogin("10.0.0.2", "user-last@konvelo.io"))
                 .isInstanceOf(KonvoException.class);
     }
 
@@ -41,9 +41,9 @@ class RateLimitGuardTest {
     void rejectionCarries429AndRetryAfter() {
         RateLimitGuard guard = new RateLimitGuard(true);
         for (int i = 0; i < 4; i++) {
-            guard.checkForgotPassword("10.0.0.3", "spam@konvo.tt");
+            guard.checkForgotPassword("10.0.0.3", "spam@konvelo.io");
         }
-        assertThatThrownBy(() -> guard.checkForgotPassword("10.0.0.3", "spam@konvo.tt"))
+        assertThatThrownBy(() -> guard.checkForgotPassword("10.0.0.3", "spam@konvelo.io"))
                 .isInstanceOfSatisfying(KonvoException.class, ex -> {
                     assertThat(ex.getStatus()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
                     assertThat(ex.getRetryAfterSeconds()).isNotNull().isGreaterThanOrEqualTo(1);
@@ -53,12 +53,12 @@ class RateLimitGuardTest {
     @Test
     void emailIsNormalisedSoCaseDoesNotBypassTheLimit() {
         RateLimitGuard guard = new RateLimitGuard(true);
-        guard.checkForgotPassword("10.0.0.4", "Mixed@Konvo.TT");
-        guard.checkForgotPassword("10.0.0.4", "mixed@konvo.tt");
-        guard.checkForgotPassword("10.0.0.4", "MIXED@KONVO.TT");
-        guard.checkForgotPassword("10.0.0.4", "mixed@konvo.tt");
+        guard.checkForgotPassword("10.0.0.4", "Mixed@Konvelo.IO");
+        guard.checkForgotPassword("10.0.0.4", "mixed@konvelo.io");
+        guard.checkForgotPassword("10.0.0.4", "MIXED@KONVELO.IO");
+        guard.checkForgotPassword("10.0.0.4", "mixed@konvelo.io");
         // 4 forgot requests for the same (normalised) email exhausts the limit.
-        assertThatThrownBy(() -> guard.checkForgotPassword("10.0.0.4", "mixed@konvo.tt"))
+        assertThatThrownBy(() -> guard.checkForgotPassword("10.0.0.4", "mixed@konvelo.io"))
                 .isInstanceOf(KonvoException.class);
     }
 
@@ -67,8 +67,8 @@ class RateLimitGuardTest {
         RateLimitGuard guard = new RateLimitGuard(false);
         assertThatCode(() -> {
             for (int i = 0; i < 1000; i++) {
-                guard.checkLogin("10.0.0.5", "flood@konvo.tt");
-                guard.checkForgotPassword("10.0.0.5", "flood@konvo.tt");
+                guard.checkLogin("10.0.0.5", "flood@konvelo.io");
+                guard.checkForgotPassword("10.0.0.5", "flood@konvelo.io");
             }
         }).doesNotThrowAnyException();
     }

@@ -40,11 +40,11 @@ public class StubAiProvider implements AiCompletionProvider, AiEmbeddingProvider
         String user = request.userMessage() == null ? "" : request.userMessage().toLowerCase();
         String reply;
         if (user.contains("hours") || user.contains("open")) {
-            reply = "We open from 6 am to 10 pm every day. Sunday breakfast crowd 'till noon.";
+            reply = "We're open from 6 am to 10 pm every day.";
         } else if (user.contains("price") || user.contains("cost")) {
-            reply = "Pricing depends on what you need — what allyuh looking for?";
+            reply = "Pricing depends on what you need — what are you looking for?";
         } else if (user.isBlank()) {
-            reply = "Heyy 👋 I'm Vee. Ask me anything.";
+            reply = "Hi 👋 I'm Vee. How can I help?";
         } else {
             reply = "Got it. Let me check on that for you.";
         }

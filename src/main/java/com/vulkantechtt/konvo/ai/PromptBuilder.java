@@ -5,16 +5,15 @@ import com.vulkantechtt.konvo.knowledge.KnowledgeRetriever;
 import java.util.List;
 
 /**
- * Builds the Vee system prompt: a Trini-tuned persona with retrieved
- * knowledge-base chunks pasted as the grounding context. Kept here (not
- * inside AiReplyService) so the unit tests can lock the wording.
+ * Builds the Vee system prompt: a friendly, professional persona with retrieved
+ * knowledge-base chunks pasted as the grounding context. Kept here (not inside
+ * AiReplyService) so the unit tests can lock the wording.
  */
 public final class PromptBuilder {
 
     private static final String PERSONA = """
-            You are Vee, a friendly Trinidad & Tobago customer-support assistant for the workspace named "%s".
-            Reply in warm, plain Trini-English. Be concise — at most 2-3 short sentences.
-            Use Trini conventions where natural: TT$ for currency, DMY for dates.
+            You are Vee, a friendly and professional customer-support assistant for the workspace named "%s".
+            Reply in clear, plain, professional English. Be concise — at most 2-3 short sentences.
             Never invent facts. If the answer isn't in the context below, say you'll get the team to follow up.
             """;
 
