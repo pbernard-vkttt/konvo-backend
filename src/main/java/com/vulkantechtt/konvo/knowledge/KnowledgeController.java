@@ -2,6 +2,7 @@ package com.vulkantechtt.konvo.knowledge;
 
 import com.vulkantechtt.konvo.common.PageResponse;
 import com.vulkantechtt.konvo.knowledge.dto.CreateTextSourceRequest;
+import com.vulkantechtt.konvo.knowledge.dto.KnowledgeSourceDetailResponse;
 import com.vulkantechtt.konvo.knowledge.dto.KnowledgeSourceResponse;
 import com.vulkantechtt.konvo.security.KonvoPrincipal;
 import jakarta.validation.Valid;
@@ -38,7 +39,7 @@ public class KnowledgeController {
     }
 
     @GetMapping("/{id}")
-    public KnowledgeSourceResponse get(
+    public KnowledgeSourceDetailResponse get(
             @AuthenticationPrincipal KonvoPrincipal principal,
             @PathVariable UUID id) {
         return service.get(principal, id);

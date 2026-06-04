@@ -3,6 +3,7 @@ package com.vulkantechtt.konvo.knowledge;
 import com.vulkantechtt.konvo.common.KonvoException;
 import com.vulkantechtt.konvo.common.PageResponse;
 import com.vulkantechtt.konvo.knowledge.dto.CreateTextSourceRequest;
+import com.vulkantechtt.konvo.knowledge.dto.KnowledgeSourceDetailResponse;
 import com.vulkantechtt.konvo.knowledge.dto.KnowledgeSourceResponse;
 import com.vulkantechtt.konvo.security.KonvoPrincipal;
 import java.util.UUID;
@@ -36,8 +37,8 @@ public class KnowledgeService {
     }
 
     @Transactional(readOnly = true)
-    public KnowledgeSourceResponse get(KonvoPrincipal principal, UUID id) {
-        return toResponse(requireOwned(principal, id));
+    public KnowledgeSourceDetailResponse get(KonvoPrincipal principal, UUID id) {
+        return toDetailResponse(requireOwned(principal, id));
     }
 
     @Transactional
@@ -93,5 +94,18 @@ public class KnowledgeService {
                 s.getChunkCount(),
                 s.getCreatedAt(),
                 s.getUpdatedAt());
+    }
+
+    static KnowledgeSourceDetailResponse toDetailResponse(KnowledgeSource s) {
+        return new KnowledgeSourceDetailResponse(
+                s.getId(),
+                s.getTitle(),
+                s.getType(),
+                s.getStatus(),
+                s.getCharCount(),
+                s.getChunkCount(),
+                s.getCreatedAt(),
+                s.getUpdatedAt(),
+                s.getContent());
     }
 }

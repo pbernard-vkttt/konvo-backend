@@ -72,12 +72,36 @@ class KnowledgeServiceTest {
         verify(indexer).indexAsync(sourceId);
     }
 
+    @Test
+    void getReturnsSavedSourceContentForTenant() {
+        UUID tenantId = UUID.randomUUID();
+        UUID sourceId = UUID.randomUUID();
+        KnowledgeSource source = new KnowledgeSource();
+        source.setId(sourceId);
+        source.setTenantId(tenantId);
+        source.setTitle("FAQ");
+        source.setType(KnowledgeSourceType.text);
+        source.setStatus(KnowledgeSourceStatus.ready);
+        source.setContent("We open from 6 am to 10 pm every day.");
+        source.setCharCount(source.getContent().length());
+        when(sources.findById(sourceId)).thenReturn(java.util.Optional.of(source));
+
+        var response = service.get(principal(tenantId), sourceId);
+
+        assertThat(response.id()).isEqualTo(sourceId);
+        assertThat(response.content()).isEqualTo("We open from 6 am to 10 pm every day.");
+    }
+
     private static KonvoPrincipal principal() {
+        return principal(UUID.randomUUID());
+    }
+
+    private static KonvoPrincipal principal(UUID tenantId) {
         return new KonvoPrincipal(
                 UUID.randomUUID(),
                 "owner@example.com",
                 "Owner",
-                UUID.randomUUID(),
+                tenantId,
                 Role.OWNER);
     }
 
