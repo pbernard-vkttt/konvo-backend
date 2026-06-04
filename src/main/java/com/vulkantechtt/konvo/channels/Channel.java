@@ -45,7 +45,8 @@ public class Channel extends BaseEntity {
     @Column(name = "access_token", columnDefinition = "text")
     private String accessToken;
 
-    @Column(name = "webhook_verify_token", nullable = false, length = 120)
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(name = "webhook_verify_token", nullable = false, columnDefinition = "text")
     private String webhookVerifyToken;
 
     public UUID getTenantId() { return tenantId; }

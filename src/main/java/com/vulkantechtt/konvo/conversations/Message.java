@@ -57,6 +57,12 @@ public class Message extends BaseEntity {
     @Column(name = "raw_payload", columnDefinition = "jsonb")
     private String rawPayload;
 
+    // NOTE (audit L-1): the `messages.attachments jsonb` column (added in V004)
+    // is intentionally left unmapped until the media/attachments feature lands.
+    // Hibernate tolerates the extra column under ddl-auto=validate. Map it with a
+    // field here when the feature ships, or drop it in a migration if it stays
+    // deferred indefinitely.
+
     public UUID getTenantId() { return tenantId; }
     public void setTenantId(UUID tenantId) { this.tenantId = tenantId; }
 

@@ -18,8 +18,15 @@ import com.vulkantechtt.konvo.outbox.OutboxPublisher;
 import com.vulkantechtt.konvo.realtime.SseHub;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -98,83 +105,125 @@ public class InboundIngestListener {
     private void handleMessages(Channel channel, MetaWebhookPayload.Value value, byte[] rawBody) {
         List<MetaWebhookPayload.InboundMessage> msgs = value.messages();
         if (msgs == null || msgs.isEmpty()) return;
-        String profileName = value.contacts() != null && !value.contacts().isEmpty()
-                && value.contacts().get(0).profile() != null
-                ? value.contacts().get(0).profile().name()
-                : null;
 
+        // Idempotency in a single query rather than one lookup per message (M-11):
+        // Meta retries the whole payload, so drop any wamid already persisted.
+        List<String> wamids = msgs.stream()
+                .map(MetaWebhookPayload.InboundMessage::id)
+                .filter(Objects::nonNull)
+                .toList();
+        Set<String> alreadySeen = wamids.isEmpty()
+                ? Set.of()
+                : messages.findByWaMessageIdIn(wamids).stream()
+                        .map(Message::getWaMessageId)
+                        .collect(Collectors.toSet());
+
+        // Map each sender's wa_id to its profile name (Meta sends one contact per wa_id).
+        Map<String, String> profileByWaId = new HashMap<>();
+        if (value.contacts() != null) {
+            for (MetaWebhookPayload.Contact c : value.contacts()) {
+                if (c != null && c.wa_id() != null && c.profile() != null) {
+                    profileByWaId.putIfAbsent(c.wa_id(), c.profile().name());
+                }
+            }
+        }
+
+        // Group the new messages by sender so the customer + conversation are
+        // resolved (and created) once per sender instead of once per message.
+        Map<String, List<MetaWebhookPayload.InboundMessage>> bySender = new LinkedHashMap<>();
         for (MetaWebhookPayload.InboundMessage in : msgs) {
-            if (messages.findByWaMessageId(in.id()).isPresent()) {
-                continue;
-            }
-            Customer customer = customers
-                    .findByTenantIdAndPhone(channel.getTenantId(), in.from())
-                    .orElseGet(() -> {
-                        Customer c = new Customer();
-                        c.setTenantId(channel.getTenantId());
-                        c.setPhone(in.from());
-                        c.setProfileName(profileName);
-                        c.setDisplayName(profileName);
-                        return customers.save(c);
-                    });
+            if (in.id() != null && alreadySeen.contains(in.id())) continue;
+            bySender.computeIfAbsent(in.from(), k -> new ArrayList<>()).add(in);
+        }
 
-            Conversation conversation = conversations
-                    .findByChannelIdAndCustomerId(channel.getId(), customer.getId())
-                    .orElseGet(() -> {
-                        Conversation c = new Conversation();
-                        c.setTenantId(channel.getTenantId());
-                        c.setChannelId(channel.getId());
-                        c.setCustomerId(customer.getId());
-                        c.setStatus(ConversationStatus.open);
-                        return conversations.save(c);
-                    });
-            if (conversation.getStatus() == ConversationStatus.closed) {
-                conversation.setStatus(ConversationStatus.open);
-            }
+        String rawBodyStr = new String(rawBody, StandardCharsets.UTF_8);
+        for (Map.Entry<String, List<MetaWebhookPayload.InboundMessage>> group : bySender.entrySet()) {
+            ingestSenderBatch(channel, group.getKey(), group.getValue(),
+                    profileByWaId.get(group.getKey()), rawBodyStr);
+        }
+    }
 
+    /** Persists all of one sender's new messages against a single resolved customer/conversation. */
+    private void ingestSenderBatch(Channel channel, String from,
+                                   List<MetaWebhookPayload.InboundMessage> senderMsgs,
+                                   String profileName, String rawBodyStr) {
+        Customer customer = customers
+                .findByTenantIdAndPhone(channel.getTenantId(), from)
+                .orElseGet(() -> {
+                    Customer c = new Customer();
+                    c.setTenantId(channel.getTenantId());
+                    c.setPhone(from);
+                    c.setProfileName(profileName);
+                    c.setDisplayName(profileName);
+                    return customers.save(c);
+                });
+
+        Conversation conversation = conversations
+                .findByChannelIdAndCustomerId(channel.getId(), customer.getId())
+                .orElseGet(() -> {
+                    Conversation c = new Conversation();
+                    c.setTenantId(channel.getTenantId());
+                    c.setChannelId(channel.getId());
+                    c.setCustomerId(customer.getId());
+                    c.setStatus(ConversationStatus.open);
+                    return conversations.save(c);
+                });
+        if (conversation.getStatus() == ConversationStatus.closed) {
+            conversation.setStatus(ConversationStatus.open);
+        }
+
+        UUID tenantId = channel.getTenantId();
+        UUID conversationId = conversation.getId();
+        UUID channelId = channel.getId();
+        UUID customerId = customer.getId();
+        boolean autoReplyEnabled = conversation.isAutoReplyEnabled();
+
+        List<UUID> appendedMessageIds = new ArrayList<>(senderMsgs.size());
+        Message latest = null;
+        for (MetaWebhookPayload.InboundMessage in : senderMsgs) {
             String body = in.text() != null ? in.text().body() : null;
             Message m = new Message();
-            m.setTenantId(channel.getTenantId());
-            m.setConversationId(conversation.getId());
+            m.setTenantId(tenantId);
+            m.setConversationId(conversationId);
             m.setDirection(MessageDirection.inbound);
             m.setContentType(in.type() == null ? "text" : in.type());
             m.setBody(body);
             m.setWaMessageId(in.id());
             m.setStatus(MessageStatus.received);
             m.setSentAt(parseTimestamp(in.timestamp()));
-            m.setRawPayload(new String(rawBody, StandardCharsets.UTF_8));
+            m.setRawPayload(rawBodyStr);
             messages.save(m);
-
-            conversation.setLastMessageAt(m.getSentAt());
-            conversation.setLastMessagePreview(truncate(body, 280));
-            conversations.save(conversation);
-
-            log.info("Inbound message persisted channel={} conversation={} wamid={}",
-                    channel.getId(), conversation.getId(), in.id());
-
-            UUID tenantId = channel.getTenantId();
-            UUID conversationId = conversation.getId();
-            UUID messageId = m.getId();
-            UUID channelId = channel.getId();
-            UUID customerId = customer.getId();
-
-            // Durable trigger: the AI-reply command is written to the outbox in
-            // this same transaction, so it commits atomically with the inbound
-            // message and can't be lost to a broker hiccup after commit (H-1).
-            if (conversation.isAutoReplyEnabled()) {
-                outbox.publish("ai.reply.inbound",
-                        new AiReplyCommand(tenantId, conversationId, channelId, customerId, messageId, body));
+            appendedMessageIds.add(m.getId());
+            if (latest == null || m.getSentAt().isAfter(latest.getSentAt())) {
+                latest = m;
             }
 
-            // SSE is best-effort optimistic UI and stays post-commit.
-            AfterCommit.run(() -> {
+            log.info("Inbound message persisted channel={} conversation={} wamid={}",
+                    channelId, conversationId, in.id());
+
+            // Durable per-message AI-reply trigger written in this transaction —
+            // preserves one-reply-per-inbound-message and survives a broker hiccup (H-1).
+            if (autoReplyEnabled) {
+                outbox.publish("ai.reply.inbound",
+                        new AiReplyCommand(tenantId, conversationId, channelId, customerId, m.getId(), body));
+            }
+        }
+
+        // One conversation update per batch, anchored to the freshest message.
+        conversation.setLastMessageAt(latest.getSentAt());
+        conversation.setLastMessagePreview(truncate(latest.getBody(), 280));
+        conversations.save(conversation);
+
+        // SSE is best-effort optimistic UI and stays post-commit.
+        AfterCommit.run(() -> {
+            for (UUID messageId : appendedMessageIds) {
                 sseHub.broadcast(tenantId, "message_appended",
                         java.util.Map.of("conversationId", conversationId.toString(),
                                 "messageId", messageId.toString()));
-                sseHub.broadcast(tenantId, "conversation_updated",
-                        java.util.Map.of("conversationId", conversationId.toString()));
-            });
-        }
+            }
+            sseHub.broadcast(tenantId, "conversation_updated",
+                    java.util.Map.of("conversationId", conversationId.toString()));
+        });
     }
 
     private void handleStatuses(MetaWebhookPayload.Value value) {

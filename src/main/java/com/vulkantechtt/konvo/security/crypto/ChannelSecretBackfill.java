@@ -28,25 +28,26 @@ public class ChannelSecretBackfill implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
+        String notEncrypted = CryptoService.PREFIX + "%";
         var rows = jdbc.queryForList("""
-                select id, app_secret, access_token
+                select id, app_secret, access_token, webhook_verify_token
                 from channels
                 where (app_secret is not null and app_secret not like ?)
                    or (access_token is not null and access_token not like ?)
-                """, CryptoService.PREFIX + "%", CryptoService.PREFIX + "%");
+                   or (webhook_verify_token is not null and webhook_verify_token not like ?)
+                """, notEncrypted, notEncrypted, notEncrypted);
 
         int touched = 0;
         for (var row : rows) {
             UUID id = (UUID) row.get("id");
-            String appSecret = (String) row.get("app_secret");
-            String accessToken = (String) row.get("access_token");
-            String nextAppSecret = encryptIfNeeded(appSecret);
-            String nextAccessToken = encryptIfNeeded(accessToken);
+            String nextAppSecret = encryptIfNeeded((String) row.get("app_secret"));
+            String nextAccessToken = encryptIfNeeded((String) row.get("access_token"));
+            String nextVerifyToken = encryptIfNeeded((String) row.get("webhook_verify_token"));
             touched += jdbc.update("""
                     update channels
-                    set app_secret = ?, access_token = ?, updated_at = now()
+                    set app_secret = ?, access_token = ?, webhook_verify_token = ?, updated_at = now()
                     where id = ?
-                    """, nextAppSecret, nextAccessToken, id);
+                    """, nextAppSecret, nextAccessToken, nextVerifyToken, id);
         }
         if (touched > 0) {
             log.info("Encrypted {} legacy channel secret row(s)", touched);
