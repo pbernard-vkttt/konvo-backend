@@ -28,4 +28,24 @@ public enum Role {
     public String authority() {
         return ROLE_PREFIX + name();
     }
+
+    /**
+     * Lower number means higher workspace authority. Keep this explicit instead
+     * of relying on enum ordinal so future enum reordering does not silently
+     * change permissions.
+     */
+    public int hierarchyRank() {
+        return switch (this) {
+            case OWNER -> 0;
+            case ADMIN -> 1;
+            case MANAGER -> 2;
+            case AGENT -> 3;
+            case VIEWER -> 4;
+            case BILLING -> 5;
+        };
+    }
+
+    public boolean isAbove(Role other) {
+        return hierarchyRank() < other.hierarchyRank();
+    }
 }

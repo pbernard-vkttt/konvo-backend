@@ -1,6 +1,7 @@
 package com.vulkantechtt.konvo.conversations;
 
 import com.vulkantechtt.konvo.common.AfterCommit;
+import com.vulkantechtt.konvo.conversations.dto.MessageStatusUpdatedEvent;
 import com.vulkantechtt.konvo.realtime.SseHub;
 import java.time.Instant;
 import org.slf4j.Logger;
@@ -38,7 +39,9 @@ public class OutboundSendWriter {
 
     @Transactional
     public void recordOutcome(OutboundMessageCommand cmd, OutboundSendListener.SendOutcome outcome) {
-        Message msg = resolveMessage(cmd);
+        ResolvedMessage resolved = resolveMessage(cmd);
+        Message msg = resolved.message();
+        MessageStatusUpdatedEvent before = toStatusEvent(msg);
 
         if (outcome.ok()) {
             msg.setWaMessageId(outcome.providerMessageId());
@@ -49,6 +52,7 @@ public class OutboundSendWriter {
             msg.setErrorMessage(outcome.errorMessage());
         }
         messages.save(msg);
+        MessageStatusUpdatedEvent after = toStatusEvent(msg);
 
         conversations.findById(cmd.conversationId()).ifPresent(conv -> {
             conv.setLastMessageAt(msg.getSentAt());
@@ -58,19 +62,25 @@ public class OutboundSendWriter {
         });
 
         AfterCommit.run(() -> {
-            sseHub.broadcast(cmd.tenantId(), "message_appended",
-                    java.util.Map.of("conversationId", cmd.conversationId().toString(),
-                            "messageId", msg.getId().toString()));
+            if (resolved.existing()) {
+                if (!before.equals(after)) {
+                    sseHub.broadcast(cmd.tenantId(), MessageStatusUpdatedEvent.EVENT_NAME, after);
+                }
+            } else {
+                sseHub.broadcast(cmd.tenantId(), "message_appended",
+                        java.util.Map.of("conversationId", cmd.conversationId().toString(),
+                                "messageId", msg.getId().toString()));
+            }
             sseHub.broadcast(cmd.tenantId(), "conversation_updated",
                     java.util.Map.of("conversationId", cmd.conversationId().toString()));
         });
     }
 
-    private Message resolveMessage(OutboundMessageCommand cmd) {
+    private ResolvedMessage resolveMessage(OutboundMessageCommand cmd) {
         if (cmd.messageId() != null) {
             Message existing = messages.findById(cmd.messageId()).orElse(null);
             if (existing != null && existing.getTenantId().equals(cmd.tenantId())) {
-                return existing;
+                return new ResolvedMessage(existing, true);
             }
             log.warn("Outbound command referenced missing message={} tenant={}; creating a new row",
                     cmd.messageId(), cmd.tenantId());
@@ -82,6 +92,19 @@ public class OutboundSendWriter {
         msg.setContentType("text");
         msg.setBody(cmd.body());
         msg.setSentAt(Instant.now());
-        return msg;
+        return new ResolvedMessage(msg, false);
     }
+
+    private static MessageStatusUpdatedEvent toStatusEvent(Message msg) {
+        return new MessageStatusUpdatedEvent(
+                msg.getConversationId(),
+                msg.getId(),
+                msg.getStatus(),
+                msg.getDeliveredAt(),
+                msg.getReadAt(),
+                msg.getErrorCode(),
+                msg.getErrorMessage());
+    }
+
+    private record ResolvedMessage(Message message, boolean existing) {}
 }

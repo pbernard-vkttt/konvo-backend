@@ -18,6 +18,9 @@ public class KnowledgeSource extends BaseEntity {
     @Column(name = "title", nullable = false, length = 200)
     private String title;
 
+    @Column(name = "source_key", length = 64)
+    private String sourceKey;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "type", nullable = false, length = 16)
     private KnowledgeSourceType type = KnowledgeSourceType.text;
@@ -43,6 +46,9 @@ public class KnowledgeSource extends BaseEntity {
 
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }
+
+    public String getSourceKey() { return sourceKey; }
+    public void setSourceKey(String sourceKey) { this.sourceKey = sourceKey; }
 
     public KnowledgeSourceType getType() { return type; }
     public void setType(KnowledgeSourceType type) { this.type = type; }

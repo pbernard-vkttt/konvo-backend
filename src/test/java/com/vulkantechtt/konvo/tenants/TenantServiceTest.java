@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 
 import com.vulkantechtt.konvo.audit.AuditAction;
 import com.vulkantechtt.konvo.audit.AuditService;
+import com.vulkantechtt.konvo.knowledge.WorkspaceKnowledgeRollupService;
 import com.vulkantechtt.konvo.security.KonvoPrincipal;
 import com.vulkantechtt.konvo.tenants.dto.UpdateTenantSettingsRequest;
 import com.vulkantechtt.konvo.users.Role;
@@ -25,27 +26,32 @@ class TenantServiceTest {
 
     @Mock TenantRepository tenants;
     @Mock AuditService audit;
+    @Mock WorkspaceKnowledgeRollupService workspaceKnowledgeRollup;
 
     private TenantService service;
 
     @BeforeEach
     void setUp() {
-        service = new TenantService(tenants, audit);
+        service = new TenantService(tenants, audit, workspaceKnowledgeRollup);
     }
 
     @Test
-    void meReturnsCustomerMemorySetting() {
+    void meReturnsWorkspaceSettings() {
         UUID tenantId = UUID.randomUUID();
         Tenant tenant = tenant(tenantId, 18);
+        tenant.setWorkingHours("Mon-Fri, 9 am to 5 pm");
+        tenant.setBusinessOfferings("Lunch menu and catering trays");
         when(tenants.findById(tenantId)).thenReturn(Optional.of(tenant));
 
         var response = service.me(tenantId);
 
         assertThat(response.customerMemoryMessageLimit()).isEqualTo(18);
+        assertThat(response.workingHours()).isEqualTo("Mon-Fri, 9 am to 5 pm");
+        assertThat(response.businessOfferings()).isEqualTo("Lunch menu and catering trays");
     }
 
     @Test
-    void updateSettingsPersistsAndAuditsChangedMemoryLimit() {
+    void updateSettingsPersistsAuditsAndSyncsWorkspaceKnowledge() {
         UUID tenantId = UUID.randomUUID();
         Tenant tenant = tenant(tenantId, 12);
         when(tenants.findById(tenantId)).thenReturn(Optional.of(tenant));
@@ -53,9 +59,15 @@ class TenantServiceTest {
 
         var response = service.updateSettings(
                 principal(tenantId),
-                new UpdateTenantSettingsRequest(24));
+                new UpdateTenantSettingsRequest(
+                        24,
+                        " Mon-Fri, 9 am to 5 pm ",
+                        "Breakfast menu\nLunch specials"));
 
         assertThat(response.customerMemoryMessageLimit()).isEqualTo(24);
+        assertThat(response.workingHours()).isEqualTo("Mon-Fri, 9 am to 5 pm");
+        assertThat(response.businessOfferings()).isEqualTo("Breakfast menu\nLunch specials");
+        verify(workspaceKnowledgeRollup).sync(any(KonvoPrincipal.class), org.mockito.ArgumentMatchers.same(tenant));
         verify(audit).record(
                 any(KonvoPrincipal.class),
                 org.mockito.ArgumentMatchers.eq(AuditAction.WORKSPACE_SETTINGS_UPDATED),
@@ -71,9 +83,26 @@ class TenantServiceTest {
         when(tenants.findById(tenantId)).thenReturn(Optional.of(tenant));
         when(tenants.save(any(Tenant.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        service.updateSettings(principal(tenantId), new UpdateTenantSettingsRequest(12));
+        service.updateSettings(principal(tenantId), new UpdateTenantSettingsRequest(12, "", ""));
 
         verify(audit, never()).record(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void updateSettingsPreservesProfileFieldsWhenTheyAreOmitted() {
+        UUID tenantId = UUID.randomUUID();
+        Tenant tenant = tenant(tenantId, 12);
+        tenant.setWorkingHours("Mon-Fri, 9 am to 5 pm");
+        tenant.setBusinessOfferings("Lunch menu");
+        when(tenants.findById(tenantId)).thenReturn(Optional.of(tenant));
+        when(tenants.save(any(Tenant.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        var response = service.updateSettings(
+                principal(tenantId),
+                new UpdateTenantSettingsRequest(20, null, null));
+
+        assertThat(response.workingHours()).isEqualTo("Mon-Fri, 9 am to 5 pm");
+        assertThat(response.businessOfferings()).isEqualTo("Lunch menu");
     }
 
     private static Tenant tenant(UUID id, int memoryLimit) {

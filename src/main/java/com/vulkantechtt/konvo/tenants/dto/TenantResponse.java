@@ -11,5 +11,7 @@ public record TenantResponse(
         String plan,
         String status,
         int customerMemoryMessageLimit,
+        String workingHours,
+        String businessOfferings,
         Instant createdAt) {
 }

@@ -11,6 +11,7 @@ import com.vulkantechtt.konvo.conversations.Message;
 import com.vulkantechtt.konvo.conversations.MessageDirection;
 import com.vulkantechtt.konvo.conversations.MessageRepository;
 import com.vulkantechtt.konvo.conversations.MessageStatus;
+import com.vulkantechtt.konvo.conversations.dto.MessageStatusUpdatedEvent;
 import com.vulkantechtt.konvo.customers.Customer;
 import com.vulkantechtt.konvo.customers.CustomerRepository;
 import com.vulkantechtt.konvo.ai.AiReplyCommand;
@@ -97,7 +98,7 @@ public class InboundIngestListener {
             for (MetaWebhookPayload.Change change : entry.changes()) {
                 if (!"messages".equals(change.field()) || change.value() == null) continue;
                 handleMessages(channel, change.value(), event.rawBody());
-                handleStatuses(change.value());
+                handleStatuses(channel, change.value());
             }
         }
     }
@@ -226,33 +227,90 @@ public class InboundIngestListener {
         });
     }
 
-    private void handleStatuses(MetaWebhookPayload.Value value) {
+    private void handleStatuses(Channel channel, MetaWebhookPayload.Value value) {
         if (value.statuses() == null) return;
+        List<MessageStatusUpdatedEvent> updates = new ArrayList<>();
         for (MetaWebhookPayload.StatusUpdate s : value.statuses()) {
             messages.findByWaMessageId(s.id()).ifPresent(m -> {
-                Instant ts = parseTimestamp(s.timestamp());
-                switch (s.status()) {
-                    case "sent" -> m.setStatus(MessageStatus.sent);
-                    case "delivered" -> {
-                        m.setStatus(MessageStatus.delivered);
-                        m.setDeliveredAt(ts);
-                    }
-                    case "read" -> {
-                        m.setStatus(MessageStatus.read);
-                        m.setReadAt(ts);
-                    }
-                    case "failed" -> {
-                        m.setStatus(MessageStatus.failed);
-                        if (s.errors() != null) {
-                            m.setErrorCode(s.errors().code());
-                            m.setErrorMessage(s.errors().title());
-                        }
-                    }
-                    default -> { /* unknown status — leave row as-is */ }
+                if (!m.getTenantId().equals(channel.getTenantId())) {
+                    return;
                 }
-                messages.save(m);
+                MessageStatusUpdatedEvent before = toStatusEvent(m);
+                applyStatusUpdate(m, s);
+                MessageStatusUpdatedEvent after = toStatusEvent(m);
+                if (!before.equals(after)) {
+                    messages.save(m);
+                    updates.add(after);
+                }
             });
         }
+        if (!updates.isEmpty()) {
+            AfterCommit.run(() -> updates.forEach(update ->
+                    sseHub.broadcast(channel.getTenantId(), MessageStatusUpdatedEvent.EVENT_NAME, update)));
+        }
+    }
+
+    private static void applyStatusUpdate(Message m, MetaWebhookPayload.StatusUpdate s) {
+        Instant ts = parseTimestamp(s.timestamp());
+        switch (s.status()) {
+            case "sent" -> advanceStatus(m, MessageStatus.sent);
+            case "delivered" -> {
+                if (m.getStatus() != MessageStatus.failed) {
+                    advanceStatus(m, MessageStatus.delivered);
+                }
+                if (m.getStatus() != MessageStatus.failed && m.getDeliveredAt() == null) {
+                    m.setDeliveredAt(ts);
+                }
+            }
+            case "read" -> {
+                if (m.getStatus() != MessageStatus.failed) {
+                    m.setStatus(MessageStatus.read);
+                    if (m.getDeliveredAt() == null) {
+                        m.setDeliveredAt(ts);
+                    }
+                    if (m.getReadAt() == null) {
+                        m.setReadAt(ts);
+                    }
+                }
+            }
+            case "failed" -> {
+                if (m.getStatus() != MessageStatus.delivered && m.getStatus() != MessageStatus.read) {
+                    m.setStatus(MessageStatus.failed);
+                    if (s.errors() != null) {
+                        m.setErrorCode(s.errors().code());
+                        m.setErrorMessage(s.errors().title());
+                    }
+                }
+            }
+            default -> { /* unknown status — leave row as-is */ }
+        }
+    }
+
+    private static void advanceStatus(Message m, MessageStatus target) {
+        if (statusRank(m.getStatus()) < statusRank(target)) {
+            m.setStatus(target);
+        }
+    }
+
+    private static int statusRank(MessageStatus status) {
+        return switch (status) {
+            case received, queued -> 0;
+            case sent -> 1;
+            case delivered -> 2;
+            case read -> 3;
+            case failed -> 4;
+        };
+    }
+
+    private static MessageStatusUpdatedEvent toStatusEvent(Message m) {
+        return new MessageStatusUpdatedEvent(
+                m.getConversationId(),
+                m.getId(),
+                m.getStatus(),
+                m.getDeliveredAt(),
+                m.getReadAt(),
+                m.getErrorCode(),
+                m.getErrorMessage());
     }
 
     private static Instant parseTimestamp(String unixSeconds) {

@@ -92,6 +92,8 @@ public class MemberService {
 
     @Transactional
     public InvitationResponse invite(KonvoPrincipal actor, InviteMemberRequest req) {
+        guardCanManageTeam(actor);
+        guardCanAssignRole(actor, req.role());
         UUID tenantId = actor.tenantId();
         UUID invitedByUserId = actor.userId();
         String email = req.email().toLowerCase();
@@ -130,6 +132,7 @@ public class MemberService {
 
     @Transactional
     public void revokeInvitation(KonvoPrincipal actor, UUID invitationId) {
+        guardCanManageTeam(actor);
         UUID tenantId = actor.tenantId();
         UserInvitation inv = invitations.findById(invitationId)
                 .orElseThrow(() -> KonvoException.notFound("Invitation", invitationId));
@@ -145,6 +148,7 @@ public class MemberService {
 
     @Transactional
     public MemberResponse changeRole(KonvoPrincipal actor, UUID membershipId, Role newRole) {
+        guardCanManageTeam(actor);
         UUID tenantId = actor.tenantId();
         UUID actingUserId = actor.userId();
         TenantMembership target = memberships.findById(membershipId)
@@ -152,6 +156,8 @@ public class MemberService {
         if (!target.getTenant().getId().equals(tenantId)) {
             throw KonvoException.notFound("Member", membershipId);
         }
+        guardCanManageRole(actor, target.getRole());
+        guardCanAssignRole(actor, newRole);
         guardLastOwnerInvariant(tenantId, target, newRole, /*removal*/ false);
         if (target.getUser().getId().equals(actingUserId) && target.getRole() == Role.OWNER && newRole != Role.OWNER) {
             // Same guard, friendlier message for the "demoting yourself" case.
@@ -170,6 +176,7 @@ public class MemberService {
 
     @Transactional
     public void remove(KonvoPrincipal actor, UUID membershipId) {
+        guardCanManageTeam(actor);
         UUID tenantId = actor.tenantId();
         UUID actingUserId = actor.userId();
         TenantMembership target = memberships.findById(membershipId)
@@ -180,6 +187,7 @@ public class MemberService {
         if (target.getUser().getId().equals(actingUserId)) {
             throw KonvoException.badRequest("You can't remove yourself — ask another owner");
         }
+        guardCanManageRole(actor, target.getRole());
         guardLastOwnerInvariant(tenantId, target, target.getRole(), /*removal*/ true);
         target.setStatus(MembershipStatus.disabled);
         memberships.save(target);
@@ -187,6 +195,24 @@ public class MemberService {
                 "Removed " + target.getUser().getEmail() + " from workspace",
                 java.util.Map.of("email", target.getUser().getEmail(),
                         "role", target.getRole().name()));
+    }
+
+    private static void guardCanManageTeam(KonvoPrincipal actor) {
+        if (actor.role() != Role.OWNER && actor.role() != Role.ADMIN) {
+            throw KonvoException.forbidden("Only owners and admins can manage team members");
+        }
+    }
+
+    private static void guardCanManageRole(KonvoPrincipal actor, Role targetRole) {
+        if (targetRole.isAbove(actor.role())) {
+            throw KonvoException.forbidden("You can't manage a role above yours");
+        }
+    }
+
+    private static void guardCanAssignRole(KonvoPrincipal actor, Role newRole) {
+        if (newRole.isAbove(actor.role())) {
+            throw KonvoException.forbidden("You can't assign a role above yours");
+        }
     }
 
     private void guardLastOwnerInvariant(UUID tenantId, TenantMembership target, Role newRole, boolean removal) {

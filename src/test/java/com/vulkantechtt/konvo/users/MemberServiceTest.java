@@ -1,5 +1,6 @@
 package com.vulkantechtt.konvo.users;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -14,6 +15,8 @@ import com.vulkantechtt.konvo.email.EmailSender;
 import com.vulkantechtt.konvo.security.KonvoPrincipal;
 import com.vulkantechtt.konvo.tenants.Tenant;
 import com.vulkantechtt.konvo.tenants.TenantRepository;
+import com.vulkantechtt.konvo.users.dto.InviteMemberRequest;
+import com.vulkantechtt.konvo.users.dto.MemberResponse;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -90,6 +93,82 @@ class MemberServiceTest {
         assertThatThrownBy(() -> service.remove(principal(actingId, Role.ADMIN), membershipId))
                 .isInstanceOf(KonvoException.class)
                 .hasMessageContaining("can't remove yourself");
+    }
+
+    @Test
+    void adminCannotChangeOwnerRole() {
+        UUID membershipId = UUID.randomUUID();
+        TenantMembership owner = membership(tenantId, UUID.randomUUID(), Role.OWNER);
+
+        when(memberships.findById(membershipId)).thenReturn(Optional.of(owner));
+
+        assertThatThrownBy(() -> service.changeRole(principal(UUID.randomUUID(), Role.ADMIN), membershipId, Role.ADMIN))
+                .isInstanceOf(KonvoException.class)
+                .hasMessageContaining("role above yours");
+        verify(memberships, never()).countByTenantIdAndRoleAndStatus(eq(tenantId), any(), any());
+        verify(memberships, never()).save(any());
+    }
+
+    @Test
+    void adminCannotPromoteMemberToOwner() {
+        UUID membershipId = UUID.randomUUID();
+        TenantMembership manager = membership(tenantId, UUID.randomUUID(), Role.MANAGER);
+
+        when(memberships.findById(membershipId)).thenReturn(Optional.of(manager));
+
+        assertThatThrownBy(() -> service.changeRole(principal(UUID.randomUUID(), Role.ADMIN), membershipId, Role.OWNER))
+                .isInstanceOf(KonvoException.class)
+                .hasMessageContaining("role above yours");
+        verify(memberships, never()).save(any());
+    }
+
+    @Test
+    void adminCannotInviteOwner() {
+        InviteMemberRequest req = new InviteMemberRequest("owner@example.com", Role.OWNER);
+
+        assertThatThrownBy(() -> service.invite(principal(UUID.randomUUID(), Role.ADMIN), req))
+                .isInstanceOf(KonvoException.class)
+                .hasMessageContaining("role above yours");
+        verify(invitations, never()).save(any());
+    }
+
+    @Test
+    void adminCannotRemoveOwner() {
+        UUID membershipId = UUID.randomUUID();
+        TenantMembership owner = membership(tenantId, UUID.randomUUID(), Role.OWNER);
+
+        when(memberships.findById(membershipId)).thenReturn(Optional.of(owner));
+
+        assertThatThrownBy(() -> service.remove(principal(UUID.randomUUID(), Role.ADMIN), membershipId))
+                .isInstanceOf(KonvoException.class)
+                .hasMessageContaining("role above yours");
+        verify(memberships, never()).countByTenantIdAndRoleAndStatus(eq(tenantId), any(), any());
+        verify(memberships, never()).save(any());
+    }
+
+    @Test
+    void adminCanChangeRoleBelowAdmin() {
+        UUID membershipId = UUID.randomUUID();
+        TenantMembership manager = membership(tenantId, UUID.randomUUID(), Role.MANAGER);
+
+        when(memberships.findById(membershipId)).thenReturn(Optional.of(manager));
+        when(memberships.save(manager)).thenReturn(manager);
+
+        MemberResponse updated = service.changeRole(
+                principal(UUID.randomUUID(), Role.ADMIN), membershipId, Role.AGENT);
+
+        assertThat(updated.role()).isEqualTo(Role.AGENT);
+        verify(memberships).save(manager);
+    }
+
+    @Test
+    void managerCannotChangeRoleEvenIfServiceIsCalledDirectly() {
+        UUID membershipId = UUID.randomUUID();
+
+        assertThatThrownBy(() -> service.changeRole(principal(UUID.randomUUID(), Role.MANAGER), membershipId, Role.AGENT))
+                .isInstanceOf(KonvoException.class)
+                .hasMessageContaining("Only owners and admins");
+        verify(memberships, never()).findById(any());
     }
 
     @Test

@@ -13,6 +13,8 @@ public class Tenant extends BaseEntity {
 
     public static final int DEFAULT_CUSTOMER_MEMORY_MESSAGE_LIMIT = 12;
     public static final int MAX_CUSTOMER_MEMORY_MESSAGE_LIMIT = 50;
+    public static final int MAX_WORKING_HOURS_LENGTH = 10_000;
+    public static final int MAX_BUSINESS_OFFERINGS_LENGTH = 50_000;
 
     @Column(name = "name", nullable = false, length = 120)
     private String name;
@@ -33,6 +35,12 @@ public class Tenant extends BaseEntity {
     @Column(name = "customer_memory_message_limit", nullable = false)
     private int customerMemoryMessageLimit = DEFAULT_CUSTOMER_MEMORY_MESSAGE_LIMIT;
 
+    @Column(name = "working_hours", nullable = false, columnDefinition = "text")
+    private String workingHours = "";
+
+    @Column(name = "business_offerings", nullable = false, columnDefinition = "text")
+    private String businessOfferings = "";
+
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
 
@@ -52,4 +60,10 @@ public class Tenant extends BaseEntity {
     public void setCustomerMemoryMessageLimit(int customerMemoryMessageLimit) {
         this.customerMemoryMessageLimit = customerMemoryMessageLimit;
     }
+
+    public String getWorkingHours() { return workingHours; }
+    public void setWorkingHours(String workingHours) { this.workingHours = workingHours; }
+
+    public String getBusinessOfferings() { return businessOfferings; }
+    public void setBusinessOfferings(String businessOfferings) { this.businessOfferings = businessOfferings; }
 }
