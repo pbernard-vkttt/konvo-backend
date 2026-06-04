@@ -1,6 +1,17 @@
 spring:
   application:
     name: konvo-backend
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:}
+            client-secret: ${GOOGLE_CLIENT_SECRET:}
+            scope:
+              - openid
+              - profile
+              - email
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
   datasource:
@@ -126,6 +137,7 @@ konvo:
   email:
     provider: ${KONVO_EMAIL_PROVIDER:stub}
     from: ${KONVO_EMAIL_FROM:no-reply@konvelo.io}
+    assets-base-url: ${KONVO_EMAIL_ASSETS_BASE_URL:http://localhost:4200}
   auth:
     dev-token-in-response: ${KONVO_AUTH_DEV_TOKEN_IN_RESPONSE:false}
   # Per-IP + per-email token-bucket throttling on the public auth endpoints
