@@ -12,6 +12,13 @@ package com.vulkantechtt.konvo.users;
 public enum Role {
     OWNER,
     ADMIN,
+    /**
+     * Inbox supervisor: sees and manages every conversation in the tenant like
+     * an admin (status, auto-reply, replies, assigning agents) but has none of
+     * the admin powers outside the inbox (team, channels, knowledge base,
+     * templates, settings, billing).
+     */
+    MANAGER,
     AGENT,
     VIEWER,
     BILLING;

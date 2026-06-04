@@ -78,6 +78,43 @@ class ConversationServiceVisibilityTest {
     }
 
     @Test
+    void managerSeesEverythingInTenant() {
+        UUID managerId = UUID.randomUUID();
+        UUID otherAgent = UUID.randomUUID();
+        UUID convId = UUID.randomUUID();
+        Conversation c = build(tenantId, otherAgent);
+        when(conversations.findById(convId)).thenReturn(Optional.of(c));
+
+        assertThatCode(() -> service.requireVisibleConversation(principal(managerId, Role.MANAGER), convId))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void managerCanAssignAnotherAgent() {
+        UUID managerId = UUID.randomUUID();
+        UUID targetAgent = UUID.randomUUID();
+        UUID convId = UUID.randomUUID();
+        Conversation c = build(tenantId, null);
+        when(conversations.findById(convId)).thenReturn(Optional.of(c));
+
+        assertThatCode(() -> service.assign(principal(managerId, Role.MANAGER), convId, targetAgent))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void agentCannotAssignAnotherAgent() {
+        UUID agentId = UUID.randomUUID();
+        UUID targetAgent = UUID.randomUUID();
+        UUID convId = UUID.randomUUID();
+        Conversation c = build(tenantId, null);
+        when(conversations.findById(convId)).thenReturn(Optional.of(c));
+
+        assertThatThrownBy(() -> service.assign(principal(agentId, Role.AGENT), convId, targetAgent))
+                .isInstanceOf(KonvoException.class)
+                .hasMessageContaining("assign other agents");
+    }
+
+    @Test
     void crossTenantRejected() {
         UUID convId = UUID.randomUUID();
         Conversation c = build(UUID.randomUUID(), null);

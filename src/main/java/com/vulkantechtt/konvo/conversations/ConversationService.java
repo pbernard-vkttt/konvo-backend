@@ -19,10 +19,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Conversation read/write for the inbox. Visibility: owners/admins see every
- * thread in their tenant; agents/viewers see threads either assigned to them
- * or unassigned (mirrors the conventional CRM rule "an agent picks up
- * unassigned chats; once they reply they own it").
+ * Conversation read/write for the inbox. Visibility: owners/admins/managers see
+ * every thread in their tenant; agents/viewers see threads either assigned to
+ * them or unassigned (mirrors the conventional CRM rule "an agent picks up
+ * unassigned chats; once they reply they own it"). Managers match admins for
+ * everything inside the inbox (full visibility + assigning agents) but hold no
+ * admin powers elsewhere.
  */
 @Service
 public class ConversationService {
@@ -48,7 +50,7 @@ public class ConversationService {
             ConversationStatus status,
             String search,
             Pageable pageable) {
-        UUID restrict = sees(principal, Role.OWNER, Role.ADMIN) ? null : principal.userId();
+        UUID restrict = seesAllChats(principal) ? null : principal.userId();
         Page<Conversation> rows = conversations.search(
                 principal.tenantId(), status, search, restrict, pageable);
         return PageResponse.from(rows.map(c -> toSummary(c, customers.findById(c.getCustomerId()).orElse(null))));
@@ -92,10 +94,11 @@ public class ConversationService {
     @Transactional
     public ConversationDetail assign(KonvoPrincipal principal, UUID id, UUID assigneeUserId) {
         Conversation c = requireVisible(principal, id);
-        // Self-assignment is allowed for any role; cross-assignment requires owner/admin.
+        // Self-assignment is allowed for any role; cross-assignment requires
+        // owner/admin/manager (managers are the inbox supervisors).
         if (assigneeUserId != null && !assigneeUserId.equals(principal.userId())
-                && !sees(principal, Role.OWNER, Role.ADMIN)) {
-            throw KonvoException.forbidden("Only owners and admins can assign other agents");
+                && !seesAllChats(principal)) {
+            throw KonvoException.forbidden("Only owners, admins and managers can assign other agents");
         }
         UUID previous = c.getAssignedUserId();
         c.setAssignedUserId(assigneeUserId);
@@ -120,13 +123,18 @@ public class ConversationService {
         if (!c.getTenantId().equals(principal.tenantId())) {
             throw KonvoException.notFound("Conversation", id);
         }
-        if (!sees(principal, Role.OWNER, Role.ADMIN)) {
+        if (!seesAllChats(principal)) {
             UUID assigned = c.getAssignedUserId();
             if (assigned != null && !assigned.equals(principal.userId())) {
                 throw KonvoException.forbidden("That conversation is assigned to another agent");
             }
         }
         return c;
+    }
+
+    /** Roles that see and manage every conversation in the tenant. */
+    private static boolean seesAllChats(KonvoPrincipal principal) {
+        return sees(principal, Role.OWNER, Role.ADMIN, Role.MANAGER);
     }
 
     private static boolean sees(KonvoPrincipal principal, Role... roles) {
