@@ -86,10 +86,15 @@ public class MessageService {
         UUID channelId = conv.getChannelId();
         UUID customerId = customer.getId();
         String phone = customer.getPhone();
-        String body = req.body();
+
+        // Durable hand-off: the outbound command is written to the outbox in
+        // this same transaction, so it commits atomically with the queued
+        // Message row and survives a broker outage (audit H-1).
+        dispatcher.enqueue(new OutboundMessageCommand(
+                messageId, tenantId, conversationId, channelId, customerId, phone, req.body()));
+
+        // SSE is best-effort optimistic UI and stays post-commit.
         AfterCommit.run(() -> {
-            dispatcher.enqueue(new OutboundMessageCommand(
-                    messageId, tenantId, conversationId, channelId, customerId, phone, body));
             sseHub.broadcast(tenantId, "message_appended",
                     java.util.Map.of("conversationId", conversationId.toString(),
                             "messageId", messageId.toString()));

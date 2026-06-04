@@ -1,5 +1,7 @@
 package com.vulkantechtt.konvo.realtime;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,13 +36,16 @@ public class RedisRealtimeBus implements RealtimeBus, MessageListener {
     private final StringRedisTemplate redis;
     private final ObjectMapper objectMapper;
     private final SseHub hub;
+    private final Counter publishFailures;
 
     public RedisRealtimeBus(StringRedisTemplate redis,
                              ObjectMapper objectMapper,
-                             @Lazy @Autowired SseHub hub) {
+                             @Lazy @Autowired SseHub hub,
+                             MeterRegistry meterRegistry) {
         this.redis = redis;
         this.objectMapper = objectMapper;
         this.hub = hub;
+        this.publishFailures = meterRegistry.counter("realtime.redis.publish.failures");
     }
 
     @Override
@@ -52,6 +57,7 @@ public class RedisRealtimeBus implements RealtimeBus, MessageListener {
             envelope.set("payload", objectMapper.valueToTree(payload));
             redis.convertAndSend(CHANNEL, objectMapper.writeValueAsString(envelope));
         } catch (Exception e) {
+            publishFailures.increment();
             log.error("Failed to publish realtime event {} to Redis", event, e);
             hub.deliverLocal(tenantId, event, payload);
         }

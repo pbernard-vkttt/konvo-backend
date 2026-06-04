@@ -8,8 +8,8 @@ import java.util.UUID;
  * set; the {@link RedisRealtimeBus} hands off to Redis pub/sub so every
  * pod's SSE hub receives the payload (multi-instance deploys, M8).
  *
- * Implementations must guarantee {@code dispatch} is called on every pod
- * exactly once per publish — including the publisher itself, since SSE
+ * Implementations must guarantee {@code publish} is called on every pod
+ * exactly once — including the publisher itself, since SSE
  * emitters might live anywhere.
  */
 public interface RealtimeBus {

@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.sql.Types;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -26,7 +27,7 @@ class UsageRollupJobTest {
 
     @Test
     void rollupMonthBindsPeriodInstantsWithExplicitTimestampType() {
-        UsageRollupJob job = new UsageRollupJob(jdbc);
+        UsageRollupJob job = new UsageRollupJob(jdbc, new SimpleMeterRegistry());
 
         job.rollupMonth(YearMonth.of(2026, 5));
 

@@ -28,14 +28,17 @@ public class AuthController {
 
     private final AuthService authService;
     private final AuthCookieWriter cookies;
+    private final RateLimitGuard rateLimit;
     private final boolean devTokenInResponse;
 
     public AuthController(
             AuthService authService,
             AuthCookieWriter cookies,
+            RateLimitGuard rateLimit,
             @Value("${konvo.auth.dev-token-in-response:false}") boolean devTokenInResponse) {
         this.authService = authService;
         this.cookies = cookies;
+        this.rateLimit = rateLimit;
         this.devTokenInResponse = devTokenInResponse;
     }
 
@@ -43,6 +46,7 @@ public class AuthController {
     public ResponseEntity<AuthSessionResponse> login(
             @Valid @RequestBody LoginRequest req,
             HttpServletRequest http) {
+        rateLimit.checkLogin(clientIp(http), req.email());
         AuthService.Session session = authService.login(req, http);
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, cookies.build(session.refreshTokenRaw()).toString())
@@ -76,7 +80,8 @@ public class AuthController {
     }
 
     @PostMapping("/password/forgot")
-    public ResponseEntity<?> forgot(@Valid @RequestBody ForgotPasswordRequest req) {
+    public ResponseEntity<?> forgot(@Valid @RequestBody ForgotPasswordRequest req, HttpServletRequest http) {
+        rateLimit.checkForgotPassword(clientIp(http), req.email());
         String raw = authService.beginPasswordReset(req.email());
         if (devTokenInResponse) {
             return ResponseEntity.ok(new DevForgotPasswordResponse(true, raw));
@@ -114,6 +119,20 @@ public class AuthController {
                 principal.fullName(),
                 principal.tenantId(),
                 principal.role().name());
+    }
+
+    /**
+     * Best-effort client IP for rate limiting. Behind Traefik the real client
+     * is in {@code X-Forwarded-For} (first hop); fall back to the socket address
+     * for direct/local calls.
+     */
+    private static String clientIp(HttpServletRequest http) {
+        String forwarded = http.getHeader("X-Forwarded-For");
+        if (forwarded != null && !forwarded.isBlank()) {
+            int comma = forwarded.indexOf(',');
+            return (comma > 0 ? forwarded.substring(0, comma) : forwarded).trim();
+        }
+        return http.getRemoteAddr();
     }
 
     /**

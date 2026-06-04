@@ -8,6 +8,7 @@ import com.vulkantechtt.konvo.users.MembershipStatus;
 import com.vulkantechtt.konvo.users.Role;
 import com.vulkantechtt.konvo.users.TenantMembership;
 import com.vulkantechtt.konvo.users.TenantMembershipRepository;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -80,6 +81,18 @@ public class NotificationService {
     @Transactional
     public int markAllRead(UUID userId) {
         return notifications.markAllRead(userId);
+    }
+
+    /**
+     * Returns true if an {@link NotificationType#AI_QUOTA_PAUSED} notification was
+     * already persisted for this tenant after {@code periodStart}. Used by
+     * {@code AiReplyListener} to avoid duplicate "Vee paused" noise within the same
+     * billing period across pod restarts and multi-pod deployments.
+     */
+    @Transactional(readOnly = true)
+    public boolean hasQuotaPauseNotification(UUID tenantId, Instant periodStart) {
+        return notifications.existsByTenantIdAndTypeAndCreatedAtAfter(
+                tenantId, NotificationType.AI_QUOTA_PAUSED.code(), periodStart);
     }
 
     private static NotificationResponse toResponse(Notification n) {

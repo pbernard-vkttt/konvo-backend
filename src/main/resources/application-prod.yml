@@ -1,3 +1,10 @@
+management:
+  server:
+    # Moves all actuator endpoints to a separate port so metrics/prometheus
+    # are not reachable through the public API port (8080). The monitoring
+    # scraper and internal health-check infra should target port 8081 only.
+    port: ${MANAGEMENT_PORT:8081}
+
 spring:
   datasource:
     url: ${DATABASE_URL}

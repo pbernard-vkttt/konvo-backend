@@ -2,6 +2,9 @@ package com.vulkantechtt.konvo.insights;
 
 import com.vulkantechtt.konvo.insights.dto.InsightsSnapshot;
 import com.vulkantechtt.konvo.security.KonvoPrincipal;
+import java.util.concurrent.TimeUnit;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,9 +24,11 @@ public class InsightsController {
     }
 
     @GetMapping
-    public InsightsSnapshot snapshot(
+    public ResponseEntity<InsightsSnapshot> snapshot(
             @AuthenticationPrincipal KonvoPrincipal principal,
             @RequestParam(defaultValue = "14") int rangeDays) {
-        return insights.snapshot(principal.tenantId(), rangeDays);
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.maxAge(60, TimeUnit.SECONDS).cachePrivate())
+                .body(insights.snapshot(principal.tenantId(), rangeDays));
     }
 }

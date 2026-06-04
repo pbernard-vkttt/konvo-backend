@@ -28,6 +28,20 @@ spring:
     username: ${RABBITMQ_USERNAME:konvo_mq}
     password: ${RABBITMQ_PASSWORD:Konvo2026!}
     virtual-host: /
+    listener:
+      simple:
+        # Reject (don't infinitely requeue) a message the listener can't handle
+        # so it dead-letters to konvo.deadletter instead of hot-looping. The
+        # in-memory retry softens transient blips (e.g. a brief DB outage)
+        # before the final reject (audit H-2). The outbound-send listener does
+        # its own provider-aware retry on top of this safety net.
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          max-attempts: 3
+          initial-interval: 1s
+          multiplier: 2
+          max-interval: 10s
   data:
     redis:
       # Spring Data Redis auto-config only attaches when host is set; the
@@ -114,8 +128,28 @@ konvo:
     from: ${KONVO_EMAIL_FROM:no-reply@konvo.tt}
   auth:
     dev-token-in-response: ${KONVO_AUTH_DEV_TOKEN_IN_RESPONSE:false}
+  # Per-IP + per-email token-bucket throttling on the public auth endpoints
+  # (login, forgot-password). In-memory per pod (audit H-4). Disable only for
+  # load tests via KONVO_RATELIMIT_ENABLED=false.
+  ratelimit:
+    enabled: ${KONVO_RATELIMIT_ENABLED:true}
+  # Transactional outbox relay (audit H-1). The relay polls for due rows and
+  # publishes them to RabbitMQ with exponential backoff; ShedLock keeps a single
+  # runner across pods.
+  outbox:
+    poll-ms: ${KONVO_OUTBOX_POLL_MS:1000}
+    batch-size: ${KONVO_OUTBOX_BATCH_SIZE:50}
+    max-attempts: ${KONVO_OUTBOX_MAX_ATTEMPTS:10}
+    base-backoff-ms: ${KONVO_OUTBOX_BASE_BACKOFF_MS:2000}
+    max-backoff-ms: ${KONVO_OUTBOX_MAX_BACKOFF_MS:300000}
   whatsapp:
     provider: ${WHATSAPP_PROVIDER:stub}
+    # Outbound send retry around the provider call (audit H-2). Transient
+    # failures (429/5xx/network) back off exponentially before the message is
+    # marked failed; permanent failures fail fast.
+    send:
+      max-attempts: ${KONVO_WHATSAPP_SEND_MAX_ATTEMPTS:4}
+      initial-backoff-ms: ${KONVO_WHATSAPP_SEND_INITIAL_BACKOFF_MS:500}
     meta:
       app-id: ${META_APP_ID:}
       app-secret: ${META_APP_SECRET:}

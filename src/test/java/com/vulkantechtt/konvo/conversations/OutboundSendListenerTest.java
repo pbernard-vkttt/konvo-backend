@@ -2,13 +2,15 @@ package com.vulkantechtt.konvo.conversations;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.vulkantechtt.konvo.realtime.SseHub;
+import com.vulkantechtt.konvo.whatsapp.TransientSendException;
 import com.vulkantechtt.konvo.whatsapp.WhatsAppProvider;
-import java.util.Map;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -21,47 +23,92 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class OutboundSendListenerTest {
 
     @Mock WhatsAppProvider provider;
+    @Mock OutboundSendWriter writer;
     @Mock MessageRepository messages;
-    @Mock ConversationRepository conversations;
-    @Mock SseHub sseHub;
+
+    private OutboundSendListener newListener() {
+        // 4 attempts, 1ms base backoff so the retry tests stay fast.
+        return new OutboundSendListener(provider, writer, messages, new SimpleMeterRegistry(), 4, 1);
+    }
+
+    private OutboundMessageCommand command(UUID messageId) {
+        return new OutboundMessageCommand(
+                messageId, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+                UUID.randomUUID(), "+18681234567", "hello");
+    }
 
     @Test
-    void updatesQueuedMessageReferencedByCommand() {
-        UUID messageId = UUID.randomUUID();
-        UUID tenantId = UUID.randomUUID();
-        UUID conversationId = UUID.randomUUID();
-        UUID channelId = UUID.randomUUID();
-        UUID customerId = UUID.randomUUID();
-
-        Message queued = new Message();
-        queued.setId(messageId);
-        queued.setTenantId(tenantId);
-        queued.setConversationId(conversationId);
-        queued.setDirection(MessageDirection.outbound);
-        queued.setContentType("text");
-        queued.setBody("hello");
-        queued.setStatus(MessageStatus.queued);
-
-        when(messages.findById(messageId)).thenReturn(Optional.of(queued));
-        when(conversations.findById(conversationId)).thenReturn(Optional.empty());
+    void successfulSendRecordsSentOutcome() {
+        OutboundMessageCommand cmd = command(null);
         when(provider.sendText(any())).thenReturn(new WhatsAppProvider.SendResult("wamid.123", "sent"));
 
-        OutboundSendListener listener = new OutboundSendListener(provider, messages, conversations, sseHub);
-        listener.onOutbound(new OutboundMessageCommand(
-                messageId,
-                tenantId,
-                conversationId,
-                channelId,
-                customerId,
-                "+18681234567",
-                "hello"));
+        newListener().onOutbound(cmd);
 
-        assertThat(queued.getWaMessageId()).isEqualTo("wamid.123");
-        assertThat(queued.getStatus()).isEqualTo(MessageStatus.sent);
-        verify(messages).save(queued);
+        ArgumentCaptor<OutboundSendListener.SendOutcome> outcome =
+                ArgumentCaptor.forClass(OutboundSendListener.SendOutcome.class);
+        verify(writer).recordOutcome(any(), outcome.capture());
+        assertThat(outcome.getValue().ok()).isTrue();
+        assertThat(outcome.getValue().providerMessageId()).isEqualTo("wamid.123");
+        assertThat(outcome.getValue().status()).isEqualTo("sent");
+    }
 
-        ArgumentCaptor<Map<String, String>> payload = ArgumentCaptor.forClass(Map.class);
-        verify(sseHub).broadcast(eq(tenantId), eq("message_appended"), payload.capture());
-        assertThat(payload.getValue()).containsEntry("messageId", messageId.toString());
+    @Test
+    void retriesTransientFailuresThenSucceeds() {
+        OutboundMessageCommand cmd = command(null);
+        when(provider.sendText(any()))
+                .thenThrow(new TransientSendException("429", null))
+                .thenThrow(new TransientSendException("503", null))
+                .thenReturn(new WhatsAppProvider.SendResult("wamid.ok", "sent"));
+
+        newListener().onOutbound(cmd);
+
+        verify(provider, times(3)).sendText(any());
+        ArgumentCaptor<OutboundSendListener.SendOutcome> outcome =
+                ArgumentCaptor.forClass(OutboundSendListener.SendOutcome.class);
+        verify(writer).recordOutcome(any(), outcome.capture());
+        assertThat(outcome.getValue().ok()).isTrue();
+    }
+
+    @Test
+    void exhaustsRetriesThenRecordsFailure() {
+        OutboundMessageCommand cmd = command(null);
+        when(provider.sendText(any())).thenThrow(new TransientSendException("still down", null));
+
+        newListener().onOutbound(cmd);
+
+        verify(provider, times(4)).sendText(any()); // maxAttempts
+        ArgumentCaptor<OutboundSendListener.SendOutcome> outcome =
+                ArgumentCaptor.forClass(OutboundSendListener.SendOutcome.class);
+        verify(writer).recordOutcome(any(), outcome.capture());
+        assertThat(outcome.getValue().ok()).isFalse();
+    }
+
+    @Test
+    void permanentFailureIsNotRetried() {
+        OutboundMessageCommand cmd = command(null);
+        when(provider.sendText(any()))
+                .thenThrow(new IllegalStateException("credentials rejected"));
+
+        newListener().onOutbound(cmd);
+
+        verify(provider, times(1)).sendText(any()); // no retry on a permanent error
+        ArgumentCaptor<OutboundSendListener.SendOutcome> outcome =
+                ArgumentCaptor.forClass(OutboundSendListener.SendOutcome.class);
+        verify(writer).recordOutcome(any(), outcome.capture());
+        assertThat(outcome.getValue().ok()).isFalse();
+    }
+
+    @Test
+    void skipsSendWhenMessageAlreadyInTerminalState() {
+        UUID messageId = UUID.randomUUID();
+        Message alreadySent = new Message();
+        alreadySent.setId(messageId);
+        alreadySent.setStatus(MessageStatus.delivered);
+        when(messages.findById(messageId)).thenReturn(Optional.of(alreadySent));
+
+        newListener().onOutbound(command(messageId));
+
+        verifyNoInteractions(provider);
+        verify(writer, never()).recordOutcome(any(), any());
     }
 }

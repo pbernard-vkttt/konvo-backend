@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -19,8 +20,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(KonvoException.class)
     public ResponseEntity<ApiError> handleKonvo(KonvoException ex, HttpServletRequest req) {
-        return ResponseEntity.status(ex.getStatus())
-                .body(ApiError.of(ex.getCode(), ex.getMessage(), req.getRequestURI()));
+        ResponseEntity.BodyBuilder builder = ResponseEntity.status(ex.getStatus());
+        if (ex.getRetryAfterSeconds() != null) {
+            builder.header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.getRetryAfterSeconds()));
+        }
+        return builder.body(ApiError.of(ex.getCode(), ex.getMessage(), req.getRequestURI()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

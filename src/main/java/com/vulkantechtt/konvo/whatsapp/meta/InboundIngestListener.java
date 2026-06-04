@@ -14,6 +14,7 @@ import com.vulkantechtt.konvo.conversations.MessageStatus;
 import com.vulkantechtt.konvo.customers.Customer;
 import com.vulkantechtt.konvo.customers.CustomerRepository;
 import com.vulkantechtt.konvo.ai.AiReplyCommand;
+import com.vulkantechtt.konvo.outbox.OutboxPublisher;
 import com.vulkantechtt.konvo.realtime.SseHub;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -22,7 +23,6 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
@@ -48,7 +48,7 @@ public class InboundIngestListener {
     private final MessageRepository messages;
     private final ObjectMapper json;
     private final SseHub sseHub;
-    private final RabbitTemplate rabbit;
+    private final OutboxPublisher outbox;
 
     public InboundIngestListener(
             ChannelRepository channels,
@@ -57,14 +57,14 @@ public class InboundIngestListener {
             MessageRepository messages,
             ObjectMapper json,
             SseHub sseHub,
-            RabbitTemplate rabbit) {
+            OutboxPublisher outbox) {
         this.channels = channels;
         this.customers = customers;
         this.conversations = conversations;
         this.messages = messages;
         this.json = json;
         this.sseHub = sseHub;
-        this.rabbit = rabbit;
+        this.outbox = outbox;
     }
 
     @RabbitListener(queues = RabbitConfig.WEBHOOK_QUEUE)
@@ -157,26 +157,22 @@ public class InboundIngestListener {
             UUID messageId = m.getId();
             UUID channelId = channel.getId();
             UUID customerId = customer.getId();
-            boolean autoReplyEnabled = conversation.isAutoReplyEnabled();
+
+            // Durable trigger: the AI-reply command is written to the outbox in
+            // this same transaction, so it commits atomically with the inbound
+            // message and can't be lost to a broker hiccup after commit (H-1).
+            if (conversation.isAutoReplyEnabled()) {
+                outbox.publish("ai.reply.inbound",
+                        new AiReplyCommand(tenantId, conversationId, channelId, customerId, messageId, body));
+            }
+
+            // SSE is best-effort optimistic UI and stays post-commit.
             AfterCommit.run(() -> {
                 sseHub.broadcast(tenantId, "message_appended",
                         java.util.Map.of("conversationId", conversationId.toString(),
                                 "messageId", messageId.toString()));
                 sseHub.broadcast(tenantId, "conversation_updated",
                         java.util.Map.of("conversationId", conversationId.toString()));
-
-                if (autoReplyEnabled) {
-                    rabbit.convertAndSend(
-                            RabbitConfig.EVENTS_EXCHANGE,
-                            "ai.reply.inbound",
-                            new AiReplyCommand(
-                                    tenantId,
-                                    conversationId,
-                                    channelId,
-                                    customerId,
-                                    messageId,
-                                    body));
-                }
             });
         }
     }

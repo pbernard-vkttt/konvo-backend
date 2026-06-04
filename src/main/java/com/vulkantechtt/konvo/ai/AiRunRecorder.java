@@ -3,6 +3,8 @@ package com.vulkantechtt.konvo.ai;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Inserts {@code ai_runs} audit rows. Plain JdbcTemplate to keep the JPA
@@ -25,6 +27,7 @@ public class AiRunRecorder {
         this.jdbc = jdbc;
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void recordOk(UUID tenantId, UUID conversationId, String purpose,
                           String provider, String model,
                           int promptTokens, int completionTokens, double cost,
@@ -33,6 +36,7 @@ public class AiRunRecorder {
                 promptTokens, completionTokens, cost, latencyMs, "ok", null);
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void recordFailure(UUID tenantId, UUID conversationId, String purpose,
                                String provider, String model, int latencyMs, String error) {
         jdbc.update(INSERT, tenantId, conversationId, purpose, provider, model,

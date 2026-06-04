@@ -6,6 +6,8 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.YearMonth;
 import java.time.ZoneOffset;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,9 +61,11 @@ public class UsageRollupJob {
             """;
 
     private final JdbcTemplate jdbc;
+    private final Counter rollupFailures;
 
-    public UsageRollupJob(JdbcTemplate jdbc) {
+    public UsageRollupJob(JdbcTemplate jdbc, MeterRegistry meterRegistry) {
         this.jdbc = jdbc;
+        this.rollupFailures = meterRegistry.counter("usage.rollup.failures");
     }
 
     @Scheduled(cron = "0 15 2 * * *", zone = "UTC")
@@ -69,7 +73,13 @@ public class UsageRollupJob {
     @Transactional
     public void rollupCurrentMonth() {
         YearMonth current = YearMonth.now(ZoneOffset.UTC);
-        rollupMonth(current);
+        try {
+            rollupMonth(current);
+        } catch (Exception e) {
+            rollupFailures.increment();
+            log.error("usage_counters rollup failed for {}", current, e);
+            throw e;
+        }
     }
 
     /** Exposed for tests + manual triggering. */

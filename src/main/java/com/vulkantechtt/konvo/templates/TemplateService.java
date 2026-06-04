@@ -168,10 +168,10 @@ public class TemplateService {
             });
         }
         audit.record(principal, AuditAction.TEMPLATE_SENT, template.getId(),
-                "Sent template " + template.getName() + " to " + target.phone,
+                "Sent template " + template.getName() + " to " + redactPhone(target.phone),
                 java.util.Map.of("template", template.getName(),
                         "language", req.language(),
-                        "to", target.phone));
+                        "to", redactPhone(target.phone)));
         return toResponse(template);
     }
 
@@ -243,4 +243,12 @@ public class TemplateService {
     }
 
     private record Resolved(Channel channel, String phone, Conversation conversation) {}
+
+    /** Redacts a phone number for audit logs: keeps country prefix (up to 5 chars) and last 4 digits. */
+    static String redactPhone(String phone) {
+        if (phone == null || phone.length() < 6) return "***";
+        int prefix = Math.min(5, phone.length() / 2);
+        int suffix = Math.min(4, phone.length() - prefix - 1);
+        return phone.substring(0, prefix) + "..." + phone.substring(phone.length() - suffix);
+    }
 }

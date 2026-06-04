@@ -3,6 +3,7 @@ package com.vulkantechtt.konvo.whatsapp.meta;
 import com.vulkantechtt.konvo.channels.Channel;
 import com.vulkantechtt.konvo.channels.ChannelRepository;
 import com.vulkantechtt.konvo.common.KonvoException;
+import com.vulkantechtt.konvo.whatsapp.TransientSendException;
 import com.vulkantechtt.konvo.whatsapp.WhatsAppProvider;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -20,6 +21,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 /**
@@ -96,9 +98,24 @@ public class MetaWhatsAppProvider implements WhatsAppProvider {
             if (status == HttpStatus.UNAUTHORIZED.value() || status == HttpStatus.FORBIDDEN.value()) {
                 throw KonvoException.forbidden("WhatsApp credentials were rejected by Meta");
             }
+            if (isRetryable(status)) {
+                // 429 / 5xx — Meta is rate-limiting or having a wobble; let the
+                // listener retry with backoff before giving up (audit H-2).
+                throw new TransientSendException(
+                        "WhatsApp send transient failure (HTTP " + status + ")", e);
+            }
             throw new KonvoException(HttpStatus.BAD_GATEWAY, "whatsapp_send_failed",
                     "WhatsApp send failed: " + e.getMessage());
+        } catch (RestClientException e) {
+            // No HTTP response at all — connection refused, timeout, DNS, etc.
+            // Always worth retrying.
+            log.warn("Meta send transport error channel={}: {}", cmd.channelId(), e.toString());
+            throw new TransientSendException("WhatsApp send transport error", e);
         }
+    }
+
+    private static boolean isRetryable(int status) {
+        return status == HttpStatus.TOO_MANY_REQUESTS.value() || status >= 500;
     }
 
     @Override

@@ -44,6 +44,10 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-data-redis")
     implementation("org.apache.commons:commons-pool2")
 
+    // Bucket4j — token-bucket rate limiting for the public auth endpoints
+    // (login + forgot-password). In-memory per-pod buckets (audit H-4).
+    implementation("com.bucket4j:bucket4j_jdk17-core:8.14.0")
+
     // Spring Mail for the M8 password-reset / invitation send paths.
     implementation("org.springframework.boot:spring-boot-starter-mail")
 

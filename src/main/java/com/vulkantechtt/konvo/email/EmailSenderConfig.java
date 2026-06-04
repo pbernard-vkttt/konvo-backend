@@ -10,8 +10,8 @@ import org.springframework.mail.javamail.JavaMailSender;
 
 /**
  * Picks an {@link EmailSender} based on {@code konvo.email.provider}.
- * {@code stub} (the default) writes the message body to the log so dev
- * password-reset / invitation links are still recoverable without SMTP.
+ * {@code stub} (the default) logs metadata only (body redacted) so dev
+ * password-reset / invitation links are still recoverable via the API response.
  * {@code smtp} wires through Spring Mail's auto-configured
  * {@link JavaMailSender}; that bean only exists when
  * {@code spring.mail.host} is set, so an incomplete production config

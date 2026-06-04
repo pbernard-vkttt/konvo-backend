@@ -1,20 +1,31 @@
 package com.vulkantechtt.konvo.conversations;
 
-import com.vulkantechtt.konvo.common.AfterCommit;
 import com.vulkantechtt.konvo.config.RabbitConfig;
-import com.vulkantechtt.konvo.realtime.SseHub;
+import com.vulkantechtt.konvo.whatsapp.TransientSendException;
 import com.vulkantechtt.konvo.whatsapp.WhatsAppProvider;
-import java.time.Instant;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import java.util.concurrent.ThreadLocalRandom;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Drains {@code konvo.whatsapp.outbound}: calls the active WhatsApp provider,
- * persists the outbound Message with its wamid, and lets later status
- * webhooks patch delivered/read/failed in place.
+ * Drains {@code konvo.whatsapp.outbound}: calls the active WhatsApp provider
+ * and hands the result to {@link OutboundSendWriter} to persist.
+ *
+ * <p>Transient provider failures (429, 5xx, network) are retried in-process
+ * with exponential backoff before the message is finally marked {@code failed}
+ * (audit H-2). The provider call is made <em>without</em> a DB transaction
+ * open, so retry backoff never pins a database connection; only the short
+ * persistence step is transactional.
+ *
+ * <p>Unexpected (non-provider) exceptions propagate so the broker can retry and
+ * ultimately dead-letter the command — see the {@code default-requeue-rejected:
+ * false} + listener retry config in {@code application.yml} and the DLQ wired in
+ * {@link RabbitConfig}.
  */
 @Component
 public class OutboundSendListener {
@@ -22,70 +33,103 @@ public class OutboundSendListener {
     private static final Logger log = LoggerFactory.getLogger(OutboundSendListener.class);
 
     private final WhatsAppProvider provider;
+    private final OutboundSendWriter writer;
     private final MessageRepository messages;
-    private final ConversationRepository conversations;
-    private final SseHub sseHub;
+    private final Counter sendFailures;
+    private final int maxAttempts;
+    private final long initialBackoffMs;
 
     public OutboundSendListener(WhatsAppProvider provider,
+                                OutboundSendWriter writer,
                                 MessageRepository messages,
-                                ConversationRepository conversations,
-                                SseHub sseHub) {
+                                MeterRegistry meterRegistry,
+                                @Value("${konvo.whatsapp.send.max-attempts:4}") int maxAttempts,
+                                @Value("${konvo.whatsapp.send.initial-backoff-ms:500}") long initialBackoffMs) {
         this.provider = provider;
+        this.writer = writer;
         this.messages = messages;
-        this.conversations = conversations;
-        this.sseHub = sseHub;
+        this.sendFailures = meterRegistry.counter("whatsapp.outbound.send.failures");
+        this.maxAttempts = maxAttempts;
+        this.initialBackoffMs = initialBackoffMs;
     }
 
     @RabbitListener(queues = RabbitConfig.OUTBOUND_SEND_QUEUE)
-    @Transactional
     public void onOutbound(OutboundMessageCommand cmd) {
-        Message msg = resolveMessage(cmd);
-
-        try {
-            WhatsAppProvider.SendResult result = provider.sendText(new WhatsAppProvider.SendTextCommand(
-                    cmd.channelId(), cmd.toPhoneE164(), cmd.body(), null));
-            msg.setWaMessageId(result.providerMessageId());
-            msg.setStatus("sent".equals(result.status()) ? MessageStatus.sent : MessageStatus.queued);
-        } catch (Exception e) {
-            log.error("Outbound send failed conversation={}", cmd.conversationId(), e);
-            msg.setStatus(MessageStatus.failed);
-            msg.setErrorMessage(e.getMessage());
+        // Idempotency guard: a duplicate command (broker redelivery or a rare
+        // outbox double-publish) must not send the same WhatsApp message twice.
+        if (alreadySent(cmd)) {
+            log.debug("Skipping outbound send for message={} — already in a terminal state", cmd.messageId());
+            return;
         }
-
-        messages.save(msg);
-
-        conversations.findById(cmd.conversationId()).ifPresent(conv -> {
-            conv.setLastMessageAt(msg.getSentAt());
-            conv.setLastMessagePreview(cmd.body() != null && cmd.body().length() > 280
-                    ? cmd.body().substring(0, 280) : cmd.body());
-            conversations.save(conv);
-        });
-
-        AfterCommit.run(() -> {
-            sseHub.broadcast(cmd.tenantId(), "message_appended",
-                    java.util.Map.of("conversationId", cmd.conversationId().toString(),
-                            "messageId", msg.getId().toString()));
-            sseHub.broadcast(cmd.tenantId(), "conversation_updated",
-                    java.util.Map.of("conversationId", cmd.conversationId().toString()));
-        });
+        SendOutcome outcome = attemptSend(cmd);
+        writer.recordOutcome(cmd, outcome);
     }
 
-    private Message resolveMessage(OutboundMessageCommand cmd) {
-        if (cmd.messageId() != null) {
-            Message existing = messages.findById(cmd.messageId()).orElse(null);
-            if (existing != null && existing.getTenantId().equals(cmd.tenantId())) {
-                return existing;
-            }
-            log.warn("Outbound command referenced missing message={} tenant={}; creating a new row",
-                    cmd.messageId(), cmd.tenantId());
+    private boolean alreadySent(OutboundMessageCommand cmd) {
+        if (cmd.messageId() == null) {
+            return false;
         }
-        Message msg = new Message();
-        msg.setTenantId(cmd.tenantId());
-        msg.setConversationId(cmd.conversationId());
-        msg.setDirection(MessageDirection.outbound);
-        msg.setContentType("text");
-        msg.setBody(cmd.body());
-        msg.setSentAt(Instant.now());
-        return msg;
+        return messages.findById(cmd.messageId())
+                .map(Message::getStatus)
+                .map(OutboundSendListener::isTerminalSent)
+                .orElse(false);
+    }
+
+    private static boolean isTerminalSent(MessageStatus status) {
+        return status == MessageStatus.sent
+                || status == MessageStatus.delivered
+                || status == MessageStatus.read;
+    }
+
+    /** Calls the provider with finite retry/backoff. No DB transaction is held. */
+    private SendOutcome attemptSend(OutboundMessageCommand cmd) {
+        TransientSendException lastTransient = null;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                WhatsAppProvider.SendResult result = provider.sendText(new WhatsAppProvider.SendTextCommand(
+                        cmd.channelId(), cmd.toPhoneE164(), cmd.body(), null));
+                return SendOutcome.ok(result);
+            } catch (TransientSendException e) {
+                sendFailures.increment();
+                lastTransient = e;
+                log.warn("Outbound send transient failure conversation={} attempt={}/{}: {}",
+                        cmd.conversationId(), attempt, maxAttempts, e.getMessage());
+                if (attempt < maxAttempts) {
+                    sleepBackoff(attempt);
+                }
+            } catch (RuntimeException e) {
+                // Permanent provider failure (rejected credentials, bad request,
+                // unknown channel) — no point retrying.
+                sendFailures.increment();
+                log.error("Outbound send failed permanently conversation={}: {}",
+                        cmd.conversationId(), e.toString());
+                return SendOutcome.failed(e.getMessage());
+            }
+        }
+        log.error("Outbound send exhausted {} attempts conversation={}", maxAttempts, cmd.conversationId());
+        return SendOutcome.failed(lastTransient != null ? lastTransient.getMessage() : "send failed");
+    }
+
+    private void sleepBackoff(int attempt) {
+        // Exponential backoff with jitter: initial * 2^(attempt-1) ± 20%.
+        long base = initialBackoffMs * (1L << Math.min(attempt - 1, 16));
+        long jitter = (long) (base * 0.2 * (ThreadLocalRandom.current().nextDouble() * 2 - 1));
+        long delay = Math.max(0, base + jitter);
+        try {
+            Thread.sleep(delay);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /** Result of a (possibly retried) provider send, handed to the writer. */
+    public record SendOutcome(boolean ok, String providerMessageId, String status, String errorMessage) {
+        static SendOutcome ok(WhatsAppProvider.SendResult result) {
+            return new SendOutcome(true, result.providerMessageId(), result.status(), null);
+        }
+
+        static SendOutcome failed(String errorMessage) {
+            return new SendOutcome(false, null, null, errorMessage);
+        }
     }
 }

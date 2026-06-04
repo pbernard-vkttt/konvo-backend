@@ -3,6 +3,9 @@ package com.vulkantechtt.konvo.billing;
 import com.vulkantechtt.konvo.billing.dto.BillingSnapshot;
 import com.vulkantechtt.konvo.billing.dto.PlanSummary;
 import com.vulkantechtt.konvo.security.KonvoPrincipal;
+import java.util.concurrent.TimeUnit;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,12 +26,12 @@ public class BillingController {
     }
 
     @GetMapping("/me")
-    public BillingSnapshot me(@AuthenticationPrincipal KonvoPrincipal principal) {
+    public ResponseEntity<BillingSnapshot> me(@AuthenticationPrincipal KonvoPrincipal principal) {
         Subscription sub = subscriptions.activeFor(principal.tenantId());
         UsageService.Snapshot s = usage.snapshot(principal.tenantId(),
                 sub.getPeriodStart(), sub.getPeriodEnd());
         Plan plan = sub.getPlan();
-        return new BillingSnapshot(
+        BillingSnapshot body = new BillingSnapshot(
                 sub.getId(),
                 sub.getStatus(),
                 sub.getPeriodStart(),
@@ -44,5 +47,8 @@ public class BillingController {
                         plan.getMembersLimit()),
                 new BillingSnapshot.UsageSummary(s.messagesSent(), s.aiRuns(), s.aiTokens()),
                 usage.isOverAiQuota(s, plan));
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.maxAge(60, TimeUnit.SECONDS).cachePrivate())
+                .body(body);
     }
 }

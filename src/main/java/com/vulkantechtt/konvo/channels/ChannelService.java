@@ -75,7 +75,7 @@ public class ChannelService {
                 java.util.Map.of("displayName", saved.getDisplayName(),
                         "phoneNumber", saved.getPhoneNumber(),
                         "wabaId", saved.getWabaId() == null ? "" : saved.getWabaId()));
-        return toResponse(saved);
+        return toResponse(saved, true);
     }
 
     @Transactional
@@ -116,6 +116,10 @@ public class ChannelService {
     }
 
     private ChannelResponse toResponse(Channel ch) {
+        return toResponse(ch, false);
+    }
+
+    private ChannelResponse toResponse(Channel ch, boolean includeVerifyToken) {
         String webhookUrl = apiBaseUrl + "/api/webhooks/meta/" + ch.getId();
         return new ChannelResponse(
                 ch.getId(),
@@ -126,7 +130,7 @@ public class ChannelService {
                 ch.getPhoneNumberId(),
                 ch.getWabaId(),
                 webhookUrl,
-                ch.getWebhookVerifyToken(),
+                includeVerifyToken ? ch.getWebhookVerifyToken() : null,
                 ch.getCreatedAt());
     }
 
