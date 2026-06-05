@@ -9,6 +9,7 @@ import com.vulkantechtt.konvo.common.KonvoException;
 import com.vulkantechtt.konvo.common.PageResponse;
 import com.vulkantechtt.konvo.conversations.Conversation;
 import com.vulkantechtt.konvo.conversations.ConversationRepository;
+import com.vulkantechtt.konvo.conversations.ConversationStatus;
 import com.vulkantechtt.konvo.conversations.Message;
 import com.vulkantechtt.konvo.conversations.MessageDirection;
 import com.vulkantechtt.konvo.conversations.MessageRepository;
@@ -194,6 +195,12 @@ public class TemplateService {
 
             target.conversation.setLastMessageAt(msg.getSentAt());
             target.conversation.setLastMessagePreview(msg.getBody());
+            // A template is the only way to reach a customer once the chat is
+            // locked (closed) or the 24h window has lapsed; sending one reopens
+            // the conversation so the agent can track the reply in the inbox.
+            if (target.conversation.getStatus() == ConversationStatus.closed) {
+                target.conversation.setStatus(ConversationStatus.open);
+            }
             conversations.save(target.conversation);
 
             UUID tenantId = principal.tenantId();
