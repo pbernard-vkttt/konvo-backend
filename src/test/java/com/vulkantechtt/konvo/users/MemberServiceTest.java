@@ -186,12 +186,56 @@ class MemberServiceTest {
         verify(memberships, never()).countByTenantIdAndRoleAndStatus(eq(tenantId), any(), any());
     }
 
+    @Test
+    void listMembersRequiresActiveActorMembershipInTenant() {
+        UUID actorId = UUID.randomUUID();
+        when(memberships.findByTenantIdAndUserId(tenantId, actorId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.listMembers(principal(actorId, Role.OWNER)))
+                .isInstanceOf(KonvoException.class)
+                .hasMessageContaining("session no longer matches");
+
+        verify(memberships, never()).findByTenantIdAndStatus(tenantId, MembershipStatus.active);
+    }
+
+    @Test
+    void listMembersRejectsRowsMissingCurrentPrincipal() {
+        UUID actorId = UUID.randomUUID();
+        TenantMembership actorMembership = membership(tenantId, actorId, Role.OWNER);
+        TenantMembership otherMembership = membership(tenantId, UUID.randomUUID(), Role.ADMIN);
+
+        when(memberships.findByTenantIdAndUserId(tenantId, actorId)).thenReturn(Optional.of(actorMembership));
+        when(memberships.findByTenantIdAndStatus(tenantId, MembershipStatus.active))
+                .thenReturn(java.util.List.of(otherMembership));
+
+        assertThatThrownBy(() -> service.listMembers(principal(actorId, Role.OWNER)))
+                .isInstanceOf(KonvoException.class)
+                .hasMessageContaining("session no longer matches");
+    }
+
+    @Test
+    void listMembersReturnsRowsWhenCurrentPrincipalIsPresent() {
+        UUID actorId = UUID.randomUUID();
+        TenantMembership actorMembership = membership(tenantId, actorId, Role.OWNER);
+        TenantMembership otherMembership = membership(tenantId, UUID.randomUUID(), Role.ADMIN);
+
+        when(memberships.findByTenantIdAndUserId(tenantId, actorId)).thenReturn(Optional.of(actorMembership));
+        when(memberships.findByTenantIdAndStatus(tenantId, MembershipStatus.active))
+                .thenReturn(java.util.List.of(otherMembership, actorMembership));
+
+        var rows = service.listMembers(principal(actorId, Role.OWNER));
+
+        assertThat(rows).hasSize(2);
+        assertThat(rows).anyMatch(row -> row.userId().equals(actorId));
+    }
+
     private KonvoPrincipal principal(UUID userId, Role role) {
         return new KonvoPrincipal(userId, "actor@x.tt", "Actor", tenantId, role);
     }
 
     private static TenantMembership membership(UUID tenantId, UUID userId, Role role) {
         TenantMembership m = new TenantMembership();
+        m.setId(UUID.randomUUID());
         Tenant t = new Tenant();
         t.setId(tenantId);
         m.setTenant(t);

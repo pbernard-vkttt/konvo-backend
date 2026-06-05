@@ -34,7 +34,7 @@ public class MemberController {
 
     @GetMapping
     public List<MemberResponse> list(@AuthenticationPrincipal KonvoPrincipal principal) {
-        return memberService.listMembers(principal.tenantId());
+        return memberService.listMembers(principal);
     }
 
     @GetMapping("/invitations")

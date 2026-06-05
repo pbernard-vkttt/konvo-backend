@@ -12,7 +12,9 @@ import com.vulkantechtt.konvo.audit.AuditService;
 import com.vulkantechtt.konvo.billing.Plan;
 import com.vulkantechtt.konvo.billing.Subscription;
 import com.vulkantechtt.konvo.billing.SubscriptionService;
+import com.vulkantechtt.konvo.auth.dto.LoginRequest;
 import com.vulkantechtt.konvo.auth.dto.RegisterOwnerRequest;
+import com.vulkantechtt.konvo.auth.dto.ResetPasswordRequest;
 import com.vulkantechtt.konvo.email.EmailSender;
 import com.vulkantechtt.konvo.email.EmailTemplateRenderer;
 import com.vulkantechtt.konvo.notifications.NotificationService;
@@ -37,6 +39,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class AuthServiceTest {
@@ -234,6 +237,143 @@ class AuthServiceTest {
     }
 
     @Test
+    void loginWithGoogleDoesNotOverwriteExistingPrimaryEmail() {
+        UUID userId = UUID.randomUUID();
+        User user = new User();
+        user.setId(userId);
+        user.setEmail("owner@old.test");
+        user.setEmailVerified(false);
+        user.setFullName("Owner Name");
+
+        AuthIdentity identity = new AuthIdentity();
+        identity.setUser(user);
+        identity.setProvider(AuthIdentityProvider.GOOGLE);
+        identity.setSubject("google-owner");
+        identity.setEmail("previous-google.test");
+
+        TenantMembership membership = membership(
+                "Original Workspace",
+                "original-workspace",
+                true,
+                Instant.parse("2026-06-01T12:00:00Z"),
+                Role.OWNER);
+        membership.setUser(user);
+
+        when(identityRepository.findByProviderAndSubject(AuthIdentityProvider.GOOGLE, "google-owner"))
+                .thenReturn(Optional.of(identity));
+        when(userRepository.save(user)).thenReturn(user);
+        when(invitationRepository.findByEmailIgnoreCaseAndAcceptedAtIsNullAndRevokedAtIsNull("google@personal.test"))
+                .thenReturn(List.of());
+        when(membershipRepository.findByUserIdAndStatus(userId, MembershipStatus.active))
+                .thenReturn(List.of(membership));
+        when(identityRepository.save(identity)).thenReturn(identity);
+
+        AuthService.Session session = service.loginWithGoogle(
+                new GoogleProfile("google-owner", "google@personal.test", "Google Name", null),
+                http);
+
+        assertThat(user.getEmail()).isEqualTo("owner@old.test");
+        assertThat(user.isEmailVerified()).isFalse();
+        assertThat(identity.getEmail()).isEqualTo("google@personal.test");
+        assertThat(session.body().user().email()).isEqualTo("owner@old.test");
+    }
+
+    @Test
+    void completePasswordResetRevokesExistingRefreshTokens() {
+        UUID userId = UUID.randomUUID();
+        PasswordResetToken token = new PasswordResetToken();
+        token.setUserId(userId);
+        token.setTokenHash(TokenHasher.hash("raw-reset"));
+        token.setExpiresAt(Instant.now().plusSeconds(3600));
+
+        User user = new User();
+        user.setId(userId);
+        user.setEmail("owner@example.com");
+        user.setFullName("Owner");
+
+        when(passwordResetRepository.findByTokenHash(TokenHasher.hash("raw-reset")))
+                .thenReturn(Optional.of(token));
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(passwordEncoder.encode("new-password-123")).thenReturn("new-hash");
+
+        service.completePasswordReset(new ResetPasswordRequest("raw-reset", "new-password-123"));
+
+        assertThat(user.getPasswordHash()).isEqualTo("new-hash");
+        assertThat(token.getConsumedAt()).isNotNull();
+        verify(refreshTokens).revokeAllForUser(userId);
+    }
+
+    @Test
+    void loginPrefersRequestedTenantSlug() {
+        User user = loginUser();
+        TenantMembership defaultMembership = membership(
+                "Default Workspace",
+                "default-workspace",
+                true,
+                Instant.parse("2026-06-03T12:00:00Z"),
+                Role.OWNER);
+        defaultMembership.setUser(user);
+        TenantMembership requestedMembership = membership(
+                "Requested Workspace",
+                "requested-workspace",
+                false,
+                Instant.parse("2026-06-01T12:00:00Z"),
+                Role.ADMIN);
+        requestedMembership.setUser(user);
+
+        when(userRepository.findByEmailIgnoreCase("owner@example.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("correct-password", "hash")).thenReturn(true);
+        when(membershipRepository.findByUserIdAndStatus(user.getId(), MembershipStatus.active))
+                .thenReturn(List.of(defaultMembership, requestedMembership));
+        when(userRepository.save(user)).thenReturn(user);
+
+        AuthService.Session session = service.login(
+                new LoginRequest("owner@example.com", "correct-password", "requested-workspace"),
+                http);
+
+        assertThat(session.body().tenant().slug()).isEqualTo("requested-workspace");
+        assertThat(session.body().tenant().role()).isEqualTo(Role.ADMIN);
+    }
+
+    @Test
+    void loginPrefersCompletedWorkspaceThenNewestMembership() {
+        User user = loginUser();
+        TenantMembership incompleteNewest = membership(
+                "Incomplete",
+                "incomplete",
+                false,
+                Instant.parse("2026-06-04T12:00:00Z"),
+                Role.OWNER);
+        incompleteNewest.setUser(user);
+        TenantMembership completedOlder = membership(
+                "Completed Older",
+                "completed-older",
+                true,
+                Instant.parse("2026-06-01T12:00:00Z"),
+                Role.ADMIN);
+        completedOlder.setUser(user);
+        TenantMembership completedNewest = membership(
+                "Completed Newest",
+                "completed-newest",
+                true,
+                Instant.parse("2026-06-03T12:00:00Z"),
+                Role.OWNER);
+        completedNewest.setUser(user);
+
+        when(userRepository.findByEmailIgnoreCase("owner@example.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("correct-password", "hash")).thenReturn(true);
+        when(membershipRepository.findByUserIdAndStatus(user.getId(), MembershipStatus.active))
+                .thenReturn(List.of(incompleteNewest, completedOlder, completedNewest));
+        when(userRepository.save(user)).thenReturn(user);
+
+        AuthService.Session session = service.login(
+                new LoginRequest("owner@example.com", "correct-password", null),
+                http);
+
+        assertThat(session.body().tenant().slug()).isEqualTo("completed-newest");
+    }
+
+    @Test
     void sessionFromPrincipalReturnsAuthSessionResponse() {
         UUID userId = UUID.randomUUID();
         UUID tenantId = UUID.randomUUID();
@@ -278,5 +418,42 @@ class AuthServiceTest {
         subscription.setId(UUID.randomUUID());
         subscription.setPlan(plan);
         return subscription;
+    }
+
+    private static User loginUser() {
+        User user = new User();
+        user.setId(UUID.randomUUID());
+        user.setEmail("owner@example.com");
+        user.setFullName("Owner Name");
+        user.setPasswordHash("hash");
+        user.setStatus(com.vulkantechtt.konvo.users.UserStatus.active);
+        return user;
+    }
+
+    private static TenantMembership membership(
+            String tenantName,
+            String tenantSlug,
+            boolean onboardingCompleted,
+            Instant createdAt,
+            Role role) {
+        Tenant tenant = new Tenant();
+        tenant.setId(UUID.randomUUID());
+        tenant.setName(tenantName);
+        tenant.setSlug(tenantSlug);
+        tenant.setOnboardingCompleted(onboardingCompleted);
+
+        User user = new User();
+        user.setId(UUID.randomUUID());
+        user.setEmail("member@example.com");
+        user.setFullName("Member Name");
+
+        TenantMembership membership = new TenantMembership();
+        membership.setId(UUID.randomUUID());
+        membership.setTenant(tenant);
+        membership.setUser(user);
+        membership.setRole(role);
+        membership.setStatus(MembershipStatus.active);
+        ReflectionTestUtils.setField(membership, "createdAt", createdAt);
+        return membership;
     }
 }

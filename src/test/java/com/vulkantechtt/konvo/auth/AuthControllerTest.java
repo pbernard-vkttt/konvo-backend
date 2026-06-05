@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 
 import com.vulkantechtt.konvo.auth.dto.AuthSessionResponse;
 import com.vulkantechtt.konvo.auth.dto.ForgotPasswordRequest;
+import com.vulkantechtt.konvo.auth.dto.ResetPasswordRequest;
 import com.vulkantechtt.konvo.common.KonvoException;
 import com.vulkantechtt.konvo.security.KonvoPrincipal;
 import com.vulkantechtt.konvo.users.Role;
@@ -61,6 +62,23 @@ class AuthControllerTest {
 
         // The reset flow must not run once the limiter trips.
         verifyNoInteractions(authService);
+    }
+
+    @Test
+    void resetPasswordClearsRefreshCookie() {
+        AuthController controller = new AuthController(authService, cookies, rateLimit, false);
+        when(cookies.buildCleared()).thenReturn(
+                org.springframework.http.ResponseCookie.from("konvo_refresh", "")
+                        .path("/api/v1/auth")
+                        .maxAge(0)
+                        .httpOnly(true)
+                        .build());
+
+        var response = controller.reset(new ResetPasswordRequest("raw-token", "new-password-123"));
+
+        verify(authService).completePasswordReset(new ResetPasswordRequest("raw-token", "new-password-123"));
+        assertThat(response.getHeaders().getFirst(org.springframework.http.HttpHeaders.SET_COOKIE))
+                .contains("konvo_refresh=", "Max-Age=0");
     }
 
     @Test

@@ -247,8 +247,9 @@ public class AuthService {
                         "account_disabled",
                         "This account can't access Konvelo right now");
             }
-            user.setEmail(email);
-            user.setEmailVerified(true);
+            if (user.getEmail() != null && email.equalsIgnoreCase(user.getEmail())) {
+                user.setEmailVerified(true);
+            }
             if (user.getFullName() == null || user.getFullName().isBlank()) {
                 user.setFullName(fullName);
             }
@@ -320,6 +321,7 @@ public class AuthService {
         userRepository.save(user);
         token.setConsumedAt(now);
         passwordResetRepository.save(token);
+        refreshTokens.revokeAllForUser(user.getId());
     }
 
     @Transactional
@@ -461,7 +463,7 @@ public class AuthService {
     private TenantMembership provisionOwnerIfNeeded(User user, String fullName) {
         List<TenantMembership> memberships = membershipRepository.findByUserIdAndStatus(user.getId(), MembershipStatus.active);
         if (!memberships.isEmpty()) {
-            return memberships.get(0);
+            return choosePreferredMembership(memberships);
         }
         Tenant tenant = createOwnerWorkspace(defaultWorkspaceName(fullName), uniqueWorkspaceSlug(fullName, user.getEmail()));
         return activateMembership(user, tenant, Role.OWNER);
@@ -587,12 +589,24 @@ public class AuthService {
             throw KonvoException.forbidden("This account isn't a member of any active workspace");
         }
         if (tenantSlug == null || tenantSlug.isBlank()) {
-            return memberships.get(0);
+            return choosePreferredMembership(memberships);
         }
         return memberships.stream()
                 .filter(m -> tenantSlug.equalsIgnoreCase(m.getTenant().getSlug()))
                 .findFirst()
                 .orElseThrow(() -> KonvoException.forbidden("No membership for workspace " + tenantSlug));
+    }
+
+    private static TenantMembership choosePreferredMembership(List<TenantMembership> memberships) {
+        return memberships.stream()
+                .max(Comparator
+                        .comparing((TenantMembership m) -> m.getTenant().isOnboardingCompleted())
+                        .thenComparing(TenantMembership::getCreatedAt,
+                                Comparator.nullsFirst(Comparator.naturalOrder()))
+                        .thenComparing(TenantMembership::getId,
+                                Comparator.nullsFirst(Comparator.naturalOrder())))
+                .orElseThrow(() -> KonvoException.forbidden(
+                        "This account isn't a member of any active workspace"));
     }
 
     private Session buildSession(User user, TenantMembership membership, HttpServletRequest http) {

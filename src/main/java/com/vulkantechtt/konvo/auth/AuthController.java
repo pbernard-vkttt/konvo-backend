@@ -92,7 +92,9 @@ public class AuthController {
     @PostMapping("/password/reset")
     public ResponseEntity<Void> reset(@Valid @RequestBody ResetPasswordRequest req) {
         authService.completePasswordReset(req);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.noContent()
+                .header(HttpHeaders.SET_COOKIE, cookies.buildCleared().toString())
+                .build();
     }
 
     @PostMapping("/verify-email")

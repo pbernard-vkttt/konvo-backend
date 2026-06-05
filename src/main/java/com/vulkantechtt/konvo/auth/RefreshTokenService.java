@@ -75,6 +75,14 @@ public class RefreshTokenService {
                 });
     }
 
+    @Transactional
+    public int revokeAllForUser(UUID userId) {
+        if (userId == null) {
+            return 0;
+        }
+        return repository.revokeActiveByUserId(userId, Instant.now());
+    }
+
     private static String truncate(String s, int max) {
         if (s == null) return null;
         return s.length() <= max ? s : s.substring(0, max);

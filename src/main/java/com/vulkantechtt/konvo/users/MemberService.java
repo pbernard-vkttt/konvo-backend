@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -76,8 +77,13 @@ public class MemberService {
     }
 
     @Transactional(readOnly = true)
-    public List<MemberResponse> listMembers(UUID tenantId) {
-        return memberships.findByTenantIdAndStatus(tenantId, MembershipStatus.active).stream()
+    public List<MemberResponse> listMembers(KonvoPrincipal actor) {
+        TenantMembership actorMembership = memberships
+                .findByTenantIdAndUserId(actor.tenantId(), actor.userId())
+                .filter(m -> m.getStatus() == MembershipStatus.active)
+                .orElseThrow(MemberService::sessionWorkspaceMismatch);
+
+        List<MemberResponse> rows = memberships.findByTenantIdAndStatus(actor.tenantId(), MembershipStatus.active).stream()
                 .map(m -> new MemberResponse(
                         m.getId(),
                         m.getUser().getId(),
@@ -88,6 +94,13 @@ public class MemberService {
                         m.getCreatedAt(),
                         m.getUser().getLastLoginAt()))
                 .toList();
+        boolean actorIsPresent = rows.stream()
+                .anyMatch(row -> row.membershipId().equals(actorMembership.getId())
+                        && row.userId().equals(actor.userId()));
+        if (!actorIsPresent) {
+            throw sessionWorkspaceMismatch();
+        }
+        return rows;
     }
 
     @Transactional(readOnly = true)
@@ -290,5 +303,12 @@ public class MemberService {
                 m.getStatus().name(),
                 m.getCreatedAt(),
                 m.getUser().getLastLoginAt());
+    }
+
+    private static KonvoException sessionWorkspaceMismatch() {
+        return new KonvoException(
+                HttpStatus.UNAUTHORIZED,
+                "session_workspace_mismatch",
+                "Your session no longer matches this workspace. Sign in again.");
     }
 }
