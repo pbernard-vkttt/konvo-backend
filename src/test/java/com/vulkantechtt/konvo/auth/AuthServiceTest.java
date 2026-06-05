@@ -180,10 +180,12 @@ class AuthServiceTest {
 
         AuthService.Session session = service.registerOwner(
                 new RegisterOwnerRequest("Owner Name", "owner@example.com", "super-secret-password"),
+                "old-refresh-token",
                 http);
 
         assertThat(session.body().tenant().name()).isEqualTo("Owner Name's workspace");
         assertThat(session.body().tenant().slug()).isEqualTo("owner-name");
+        verify(refreshTokens).revoke("old-refresh-token");
 
         ArgumentCaptor<Tenant> tenantCaptor = ArgumentCaptor.forClass(Tenant.class);
         verify(tenantRepository).save(tenantCaptor.capture());

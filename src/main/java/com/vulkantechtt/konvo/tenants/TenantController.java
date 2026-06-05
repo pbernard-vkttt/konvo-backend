@@ -2,6 +2,7 @@ package com.vulkantechtt.konvo.tenants;
 
 import com.vulkantechtt.konvo.security.KonvoPrincipal;
 import com.vulkantechtt.konvo.tenants.dto.TenantResponse;
+import com.vulkantechtt.konvo.tenants.dto.UpdateOnboardingWorkspaceRequest;
 import com.vulkantechtt.konvo.tenants.dto.UpdateTenantSettingsRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -36,6 +37,14 @@ public class TenantController {
             @AuthenticationPrincipal KonvoPrincipal principal,
             @Valid @RequestBody UpdateTenantSettingsRequest req) {
         return tenantService.updateSettings(principal, req);
+    }
+
+    @PatchMapping("/me/onboarding/workspace")
+    @PreAuthorize("hasRole('OWNER')")
+    public TenantResponse updateOnboardingWorkspace(
+            @AuthenticationPrincipal KonvoPrincipal principal,
+            @Valid @RequestBody UpdateOnboardingWorkspaceRequest req) {
+        return tenantService.updateOnboardingWorkspace(principal, req);
     }
 
     @PostMapping("/me/onboarding/complete")

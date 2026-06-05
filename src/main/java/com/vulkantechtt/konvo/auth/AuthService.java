@@ -189,7 +189,7 @@ public class AuthService {
     }
 
     @Transactional
-    public Session registerOwner(RegisterOwnerRequest req, HttpServletRequest http) {
+    public Session registerOwner(RegisterOwnerRequest req, String presentedRawCookie, HttpServletRequest http) {
         if (userRepository.existsByEmailIgnoreCase(req.email())) {
             throw KonvoException.conflict("That email already has a Konvo account");
         }
@@ -211,6 +211,7 @@ public class AuthService {
         sendWelcomeEmail(user);
         sendVerificationEmail(user);
 
+        refreshTokens.revoke(presentedRawCookie);
         return buildSession(user, membership, http);
     }
 

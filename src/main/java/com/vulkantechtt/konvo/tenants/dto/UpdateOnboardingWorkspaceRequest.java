@@ -1,16 +1,20 @@
 package com.vulkantechtt.konvo.tenants.dto;
 
 import com.vulkantechtt.konvo.tenants.Tenant;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
-public record UpdateTenantSettingsRequest(
-        @NotNull
-        @Min(0)
-        @Max(Tenant.MAX_CUSTOMER_MEMORY_MESSAGE_LIMIT)
-        Integer customerMemoryMessageLimit,
+public record UpdateOnboardingWorkspaceRequest(
+        @NotBlank
+        @Size(max = 120)
+        String workspaceName,
+
+        @NotBlank
+        @Size(max = 80)
+        String workspaceSlug,
+
+        @Size(max = 80)
+        String industry,
 
         @Size(max = Tenant.MAX_WORKING_HOURS_LENGTH)
         String workingHours,

@@ -73,7 +73,7 @@ public class AuthController {
     public ResponseEntity<AuthSessionResponse> registerOwner(
             @Valid @RequestBody RegisterOwnerRequest req,
             HttpServletRequest http) {
-        AuthService.Session session = authService.registerOwner(req, http);
+        AuthService.Session session = authService.registerOwner(req, cookies.readFromRequest(http), http);
         return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED)
                 .header(HttpHeaders.SET_COOKIE, cookies.build(session.refreshTokenRaw()).toString())
                 .body(session.body());

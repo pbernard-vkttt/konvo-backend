@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 import com.vulkantechtt.konvo.auth.dto.AuthSessionResponse;
 import com.vulkantechtt.konvo.auth.dto.ForgotPasswordRequest;
 import com.vulkantechtt.konvo.auth.dto.ResetPasswordRequest;
+import com.vulkantechtt.konvo.auth.dto.RegisterOwnerRequest;
 import com.vulkantechtt.konvo.common.KonvoException;
 import com.vulkantechtt.konvo.security.KonvoPrincipal;
 import com.vulkantechtt.konvo.users.Role;
@@ -79,6 +80,29 @@ class AuthControllerTest {
         verify(authService).completePasswordReset(new ResetPasswordRequest("raw-token", "new-password-123"));
         assertThat(response.getHeaders().getFirst(org.springframework.http.HttpHeaders.SET_COOKIE))
                 .contains("konvo_refresh=", "Max-Age=0");
+    }
+
+    @Test
+    void registerOwnerReplacesPresentedRefreshCookie() {
+        AuthController controller = new AuthController(authService, cookies, rateLimit, false);
+        RegisterOwnerRequest request = new RegisterOwnerRequest(
+                "Owner Name",
+                "owner@example.com",
+                "super-secret-password");
+        AuthSessionResponse responseBody = sessionResponse();
+        AuthService.Session session = new AuthService.Session("access", 900, "new-refresh", responseBody);
+        doReturn("old-refresh").when(cookies).readFromRequest(http);
+        when(authService.registerOwner(request, "old-refresh", http)).thenReturn(session);
+        when(cookies.build("new-refresh"))
+                .thenReturn(org.springframework.http.ResponseCookie.from("konvo_refresh", "new-refresh").build());
+
+        var response = controller.registerOwner(request, http);
+
+        assertThat(response.getStatusCode()).isEqualTo(org.springframework.http.HttpStatus.CREATED);
+        assertThat(response.getBody()).isEqualTo(responseBody);
+        assertThat(response.getHeaders().getFirst(org.springframework.http.HttpHeaders.SET_COOKIE))
+                .contains("konvo_refresh=new-refresh");
+        verify(authService).registerOwner(request, "old-refresh", http);
     }
 
     @Test
