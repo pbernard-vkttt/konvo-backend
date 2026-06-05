@@ -35,6 +35,12 @@ dependencies {
 
     implementation("software.amazon.awssdk:s3:2.28.16")
 
+    // Apache Tika — text extraction for knowledge-base ingestion (PDF, Excel,
+    // and HTML/URL scraping). The standard-package bundles the PDF/POI/HTML
+    // parsers so one parseToString() call handles every format we accept.
+    implementation("org.apache.tika:tika-core:3.3.1")
+    implementation("org.apache.tika:tika-parsers-standard-package:3.3.1")
+
     implementation("com.auth0:java-jwt:4.5.0")
 
     // ShedLock — cluster-safe lock for @Scheduled jobs (M8: usage rollup).

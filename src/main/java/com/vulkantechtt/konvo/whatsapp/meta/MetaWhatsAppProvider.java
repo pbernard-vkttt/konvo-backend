@@ -319,16 +319,46 @@ public class MetaWhatsAppProvider implements WhatsAppProvider {
         }
     }
 
+    /**
+     * Meta's {@code error.message} is usually generic ("Invalid parameter").
+     * The human-meaningful detail lives in {@code error_user_title} /
+     * {@code error_user_msg}, so we prefer those. A few subcodes also have a
+     * clearer house phrasing than Meta's wording — most notably 2388024,
+     * "content in this language already exists".
+     */
     private String metaErrorMessage(String body, String fallback) {
         try {
-            JsonNode root = json.readTree(body);
-            JsonNode message = root.path("error").path("message");
-            if (message.isTextual() && !message.asText().isBlank()) {
-                return message.asText();
+            JsonNode error = json.readTree(body).path("error");
+
+            long subcode = error.path("error_subcode").asLong(0);
+            if (subcode == 2388024L) {
+                return "A template with this name already exists in this language on Meta. "
+                        + "Sync from Meta to import it, or create the template under a different name.";
+            }
+
+            String userTitle = textOrNull(error.path("error_user_title"));
+            String userMsg = textOrNull(error.path("error_user_msg"));
+            if (userTitle != null && userMsg != null) {
+                return userTitle + ": " + userMsg;
+            }
+            if (userMsg != null) {
+                return userMsg;
+            }
+            if (userTitle != null) {
+                return userTitle;
+            }
+
+            String message = textOrNull(error.path("message"));
+            if (message != null) {
+                return message;
             }
         } catch (Exception ignored) {
             // Fall through to the generic fallback.
         }
         return fallback;
+    }
+
+    private static String textOrNull(JsonNode node) {
+        return node.isTextual() && !node.asText().isBlank() ? node.asText() : null;
     }
 }

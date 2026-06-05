@@ -3,15 +3,19 @@ package com.vulkantechtt.konvo.knowledge;
 import com.vulkantechtt.konvo.common.KonvoException;
 import com.vulkantechtt.konvo.common.PageResponse;
 import com.vulkantechtt.konvo.knowledge.dto.CreateTextSourceRequest;
+import com.vulkantechtt.konvo.knowledge.dto.CreateUrlSourceRequest;
 import com.vulkantechtt.konvo.knowledge.dto.KnowledgeSourceDetailResponse;
 import com.vulkantechtt.konvo.knowledge.dto.KnowledgeSourceResponse;
 import com.vulkantechtt.konvo.security.KonvoPrincipal;
+import java.net.URI;
+import java.util.Locale;
 import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * CRUD for knowledge sources. Creates persist the source as {@code indexing}
@@ -21,12 +25,20 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 @Service
 public class KnowledgeService {
 
+    /** Upper bound on extracted text we persist; mirrors the extractor's cap. */
+    private static final int MAX_CONTENT_CHARS = 200_000;
+
     private final KnowledgeSourceRepository sources;
     private final KnowledgeIndexer indexer;
+    private final TextExtractionService extractor;
 
-    public KnowledgeService(KnowledgeSourceRepository sources, KnowledgeIndexer indexer) {
+    public KnowledgeService(
+            KnowledgeSourceRepository sources,
+            KnowledgeIndexer indexer,
+            TextExtractionService extractor) {
         this.sources = sources;
         this.indexer = indexer;
+        this.extractor = extractor;
     }
 
     @Transactional(readOnly = true)
@@ -54,6 +66,92 @@ public class KnowledgeService {
         KnowledgeSource saved = sources.save(source);
         dispatchIndexAfterCommit(saved.getId());
         return toResponse(saved);
+    }
+
+    /**
+     * Ingest an uploaded PDF or spreadsheet. The file's text is extracted
+     * synchronously (so the user gets immediate "unreadable file" feedback),
+     * then chunk + embed runs in the background like every other source.
+     */
+    @Transactional
+    public KnowledgeSourceResponse createFromFile(KonvoPrincipal principal, String title, MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw KonvoException.badRequest("Choose a file to upload");
+        }
+        String filename = file.getOriginalFilename();
+        KnowledgeSourceType type = detectFileType(file.getContentType(), filename);
+
+        byte[] data;
+        try {
+            data = file.getBytes();
+        } catch (java.io.IOException e) {
+            throw KonvoException.badRequest("Could not read the uploaded file");
+        }
+        String text = extractor.extractFromFile(data, filename, file.getContentType());
+
+        String resolvedTitle = firstNonBlank(title, stripExtension(filename), "Uploaded document");
+        return persistExtracted(principal, resolvedTitle, type, text);
+    }
+
+    /** Ingest a web page by URL: fetch, strip to text, then index. */
+    @Transactional
+    public KnowledgeSourceResponse createFromUrl(KonvoPrincipal principal, CreateUrlSourceRequest req) {
+        String text = extractor.extractFromUrl(req.url());
+        String resolvedTitle = firstNonBlank(req.title(), hostOf(req.url()), "Imported page");
+        return persistExtracted(principal, resolvedTitle, KnowledgeSourceType.url, text);
+    }
+
+    private KnowledgeSourceResponse persistExtracted(
+            KonvoPrincipal principal, String title, KnowledgeSourceType type, String text) {
+        String content = text.length() > MAX_CONTENT_CHARS ? text.substring(0, MAX_CONTENT_CHARS) : text;
+        KnowledgeSource source = new KnowledgeSource();
+        source.setTenantId(principal.tenantId());
+        source.setTitle(title.length() > 200 ? title.substring(0, 200) : title);
+        source.setType(type);
+        source.setStatus(KnowledgeSourceStatus.indexing);
+        source.setContent(content);
+        source.setCharCount(content.length());
+        source.setCreatedByUserId(principal.userId());
+        KnowledgeSource saved = sources.save(source);
+        dispatchIndexAfterCommit(saved.getId());
+        return toResponse(saved);
+    }
+
+    private static KnowledgeSourceType detectFileType(String contentType, String filename) {
+        String ct = contentType == null ? "" : contentType.toLowerCase(Locale.ROOT);
+        String name = filename == null ? "" : filename.toLowerCase(Locale.ROOT);
+        if (ct.contains("pdf") || name.endsWith(".pdf")) {
+            return KnowledgeSourceType.pdf;
+        }
+        if (ct.contains("spreadsheet") || ct.contains("excel") || ct.contains("csv")
+                || name.endsWith(".xlsx") || name.endsWith(".xls") || name.endsWith(".csv")) {
+            return KnowledgeSourceType.spreadsheet;
+        }
+        throw KonvoException.badRequest("Unsupported file type. Upload a PDF, .xlsx, .xls or .csv file.");
+    }
+
+    private static String firstNonBlank(String... values) {
+        for (String v : values) {
+            if (v != null && !v.isBlank()) {
+                return v.trim();
+            }
+        }
+        return "";
+    }
+
+    private static String stripExtension(String filename) {
+        if (filename == null) return null;
+        int dot = filename.lastIndexOf('.');
+        return dot > 0 ? filename.substring(0, dot) : filename;
+    }
+
+    private static String hostOf(String url) {
+        try {
+            String host = URI.create(url.trim()).getHost();
+            return host != null ? host : url;
+        } catch (RuntimeException e) {
+            return url;
+        }
     }
 
     private void dispatchIndexAfterCommit(UUID sourceId) {

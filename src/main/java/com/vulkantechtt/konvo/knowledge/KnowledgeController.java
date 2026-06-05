@@ -2,6 +2,7 @@ package com.vulkantechtt.konvo.knowledge;
 
 import com.vulkantechtt.konvo.common.PageResponse;
 import com.vulkantechtt.konvo.knowledge.dto.CreateTextSourceRequest;
+import com.vulkantechtt.konvo.knowledge.dto.CreateUrlSourceRequest;
 import com.vulkantechtt.konvo.knowledge.dto.KnowledgeSourceDetailResponse;
 import com.vulkantechtt.konvo.knowledge.dto.KnowledgeSourceResponse;
 import com.vulkantechtt.konvo.security.KonvoPrincipal;
@@ -9,6 +10,7 @@ import jakarta.validation.Valid;
 import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -17,8 +19,10 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/v1/knowledge/sources")
@@ -52,6 +56,25 @@ public class KnowledgeController {
             @AuthenticationPrincipal KonvoPrincipal principal,
             @Valid @RequestBody CreateTextSourceRequest req) {
         return service.createText(principal, req);
+    }
+
+    @PostMapping(value = "/file", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
+    public KnowledgeSourceResponse createFromFile(
+            @AuthenticationPrincipal KonvoPrincipal principal,
+            @RequestParam(value = "title", required = false) String title,
+            @RequestParam("file") MultipartFile file) {
+        return service.createFromFile(principal, title, file);
+    }
+
+    @PostMapping("/url")
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
+    public KnowledgeSourceResponse createFromUrl(
+            @AuthenticationPrincipal KonvoPrincipal principal,
+            @Valid @RequestBody CreateUrlSourceRequest req) {
+        return service.createFromUrl(principal, req);
     }
 
     @DeleteMapping("/{id}")

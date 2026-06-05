@@ -1,6 +1,11 @@
 spring:
   application:
     name: konvo-backend
+  servlet:
+    multipart:
+      # Knowledge-base file uploads (PDF / Excel). Cap at 20 MB per file.
+      max-file-size: ${KONVO_KB_MAX_FILE_SIZE:20MB}
+      max-request-size: ${KONVO_KB_MAX_REQUEST_SIZE:20MB}
   security:
     oauth2:
       client:
