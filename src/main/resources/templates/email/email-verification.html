@@ -17,7 +17,14 @@
         <!-- Header -->
         <tr>
           <td bgcolor="#0B1020" style="padding:24px 40px;">
-            <svg width="30" height="30" viewBox="0 0 100 100" style="display:inline-block;vertical-align:middle;" aria-hidden="true"><rect x="22" y="18" width="14" height="71" rx="7" fill="#fff"/><path d="M34 52 L64 80 C67 83 64 90 58 87 L33 75 Z" fill="#fff"/><path d="M41 49 C37 47 37 42 41 40 L82 23 C86 21 89 25 87 29 L69 70 C67 74 62 73 60 69 L54 55 Z" fill="#1FD6EE"/></svg>
+            <img
+              th:src="${assetsBaseUrl} + '/assets/logo.png'"
+              src=""
+              alt="Konvelo"
+              width="30"
+              height="30"
+              style="display:inline-block;vertical-align:middle;border:0;outline:none;text-decoration:none;"
+            >
             <span style="font-family:'Space Grotesk',Arial,sans-serif;font-weight:600;font-size:15px;color:#ffffff;vertical-align:middle;margin-left:10px;letter-spacing:-0.01em;">Konvelo</span>
           </td>
         </tr>
@@ -29,7 +36,7 @@
             <table cellpadding="0" cellspacing="0" border="0" align="center" style="margin-bottom:28px;">
               <tr>
                 <td width="72" height="72" align="center" valign="middle" bgcolor="#EEF0FB" style="border-radius:36px;border:1px solid #D6DBF1;">
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#3F51B5" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+                  <img th:src="${assetsBaseUrl} + '/assets/shield-check.png'" src="" alt="" width="32" height="32" style="display:block;border:0;outline:none;text-decoration:none;">
                 </td>
               </tr>
             </table>
