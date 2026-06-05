@@ -51,7 +51,7 @@ public class TemplateController {
     }
 
     @PostMapping("/{id}/send")
-    @PreAuthorize("hasAnyRole('OWNER','ADMIN','AGENT')")
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN','MANAGER','AGENT')")
     public TemplateResponse send(
             @AuthenticationPrincipal KonvoPrincipal principal,
             @PathVariable UUID id,
