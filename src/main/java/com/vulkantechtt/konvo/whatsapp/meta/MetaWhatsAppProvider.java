@@ -15,6 +15,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.http.HttpHeaders;
@@ -50,6 +51,7 @@ public class MetaWhatsAppProvider implements WhatsAppProvider {
     private final RestClient http;
     private final ObjectMapper json;
 
+    @Autowired
     public MetaWhatsAppProvider(MetaProperties props, ChannelRepository channels, ObjectMapper json) {
         this(props, channels, json, RestClient.builder());
     }
