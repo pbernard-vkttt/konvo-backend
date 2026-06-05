@@ -12,6 +12,12 @@ public record UpdateTenantSettingsRequest(
         @Max(Tenant.MAX_CUSTOMER_MEMORY_MESSAGE_LIMIT)
         Integer customerMemoryMessageLimit,
 
+        @Size(max = 120)
+        String workspaceName,
+
+        @Size(max = 80)
+        String workspaceSlug,
+
         @Size(max = Tenant.MAX_WORKING_HOURS_LENGTH)
         String workingHours,
 

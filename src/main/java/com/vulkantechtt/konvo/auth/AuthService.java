@@ -55,7 +55,6 @@ public class AuthService {
 
     private static final Logger log = LoggerFactory.getLogger(AuthService.class);
 
-    private static final Pattern SLUG = Pattern.compile("^[a-z0-9][a-z0-9-]{1,78}[a-z0-9]$");
     private static final Pattern NON_SLUG = Pattern.compile("[^a-z0-9]+");
     private static final Duration INVITATION_TTL = Duration.ofDays(7);
     private static final Duration PASSWORD_RESET_TTL = Duration.ofHours(1);
@@ -191,18 +190,13 @@ public class AuthService {
 
     @Transactional
     public Session registerOwner(RegisterOwnerRequest req, HttpServletRequest http) {
-        String slug = req.workspaceSlug().toLowerCase();
-        if (!SLUG.matcher(slug).matches()) {
-            throw KonvoException.badRequest("Workspace slug must be lower-case letters, numbers, or dashes (3–80 chars)");
-        }
-        if (tenantRepository.existsBySlug(slug)) {
-            throw KonvoException.conflict("That workspace name is taken");
-        }
         if (userRepository.existsByEmailIgnoreCase(req.email())) {
             throw KonvoException.conflict("That email already has a Konvo account");
         }
 
-        Tenant tenant = createOwnerWorkspace(req.workspaceName(), slug);
+        Tenant tenant = createOwnerWorkspace(
+                defaultWorkspaceName(req.fullName()),
+                uniqueWorkspaceSlug(req.fullName(), req.email()));
 
         User user = new User();
         user.setEmail(req.email().toLowerCase());

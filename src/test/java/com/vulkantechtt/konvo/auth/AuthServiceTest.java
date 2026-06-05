@@ -12,6 +12,7 @@ import com.vulkantechtt.konvo.audit.AuditService;
 import com.vulkantechtt.konvo.billing.Plan;
 import com.vulkantechtt.konvo.billing.Subscription;
 import com.vulkantechtt.konvo.billing.SubscriptionService;
+import com.vulkantechtt.konvo.auth.dto.RegisterOwnerRequest;
 import com.vulkantechtt.konvo.email.EmailSender;
 import com.vulkantechtt.konvo.email.EmailTemplateRenderer;
 import com.vulkantechtt.konvo.notifications.NotificationService;
@@ -143,6 +144,48 @@ class AuthServiceTest {
         verify(identityRepository).save(identityCaptor.capture());
         assertThat(identityCaptor.getValue().getProvider()).isEqualTo(AuthIdentityProvider.GOOGLE);
         assertThat(identityCaptor.getValue().getSubject()).isEqualTo("google-sub");
+    }
+
+    @Test
+    void registerOwnerCreatesProvisionalWorkspaceFromOwnerIdentity() {
+        when(userRepository.existsByEmailIgnoreCase("owner@example.com")).thenReturn(false);
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
+            User user = invocation.getArgument(0);
+            if (user.getId() == null) {
+                user.setId(UUID.randomUUID());
+            }
+            return user;
+        });
+        when(tenantRepository.existsBySlug("owner-name")).thenReturn(false);
+        when(tenantRepository.save(any(Tenant.class))).thenAnswer(invocation -> {
+            Tenant tenant = invocation.getArgument(0);
+            if (tenant.getId() == null) {
+                tenant.setId(UUID.randomUUID());
+            }
+            return tenant;
+        });
+        when(membershipRepository.findByTenantIdAndUserId(any(), any())).thenReturn(Optional.empty());
+        when(membershipRepository.save(any(TenantMembership.class))).thenAnswer(invocation -> {
+            TenantMembership membership = invocation.getArgument(0);
+            if (membership.getId() == null) {
+                membership.setId(UUID.randomUUID());
+            }
+            return membership;
+        });
+        when(passwordEncoder.encode("super-secret-password")).thenReturn("hashed-password");
+        when(subscriptions.provisionFreePlan(any())).thenReturn(subscription("free"));
+
+        AuthService.Session session = service.registerOwner(
+                new RegisterOwnerRequest("Owner Name", "owner@example.com", "super-secret-password"),
+                http);
+
+        assertThat(session.body().tenant().name()).isEqualTo("Owner Name's workspace");
+        assertThat(session.body().tenant().slug()).isEqualTo("owner-name");
+
+        ArgumentCaptor<Tenant> tenantCaptor = ArgumentCaptor.forClass(Tenant.class);
+        verify(tenantRepository).save(tenantCaptor.capture());
+        assertThat(tenantCaptor.getValue().getName()).isEqualTo("Owner Name's workspace");
+        assertThat(tenantCaptor.getValue().getSlug()).isEqualTo("owner-name");
     }
 
     @Test

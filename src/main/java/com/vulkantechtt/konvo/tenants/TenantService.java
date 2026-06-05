@@ -3,6 +3,7 @@ package com.vulkantechtt.konvo.tenants;
 import com.vulkantechtt.konvo.audit.AuditAction;
 import com.vulkantechtt.konvo.audit.AuditService;
 import com.vulkantechtt.konvo.common.KonvoException;
+import com.vulkantechtt.konvo.common.SafeText;
 import com.vulkantechtt.konvo.knowledge.WorkspaceKnowledgeRollupService;
 import com.vulkantechtt.konvo.security.KonvoPrincipal;
 import com.vulkantechtt.konvo.tenants.dto.TenantResponse;
@@ -10,11 +11,13 @@ import com.vulkantechtt.konvo.tenants.dto.UpdateTenantSettingsRequest;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class TenantService {
+    private static final Pattern SLUG = Pattern.compile("^[a-z0-9][a-z0-9-]{1,78}[a-z0-9]$");
 
     private final TenantRepository tenants;
     private final AuditService audit;
@@ -37,12 +40,16 @@ public class TenantService {
     @Transactional
     public TenantResponse updateSettings(KonvoPrincipal actor, UpdateTenantSettingsRequest req) {
         Tenant tenant = requireTenant(actor.tenantId());
+        String oldName = tenant.getName();
+        String oldSlug = tenant.getSlug();
         int oldLimit = tenant.getCustomerMemoryMessageLimit();
         String oldWorkingHours = safe(tenant.getWorkingHours());
         String oldBusinessOfferings = safe(tenant.getBusinessOfferings());
         String oldCustomSystemPrompt = safe(tenant.getCustomSystemPrompt());
         String oldIndustry = safe(tenant.getIndustry());
         int newLimit = req.customerMemoryMessageLimit();
+        String newName = req.workspaceName() == null ? oldName : normalizeWorkspaceName(req.workspaceName());
+        String newSlug = req.workspaceSlug() == null ? oldSlug : normalizeWorkspaceSlug(req.workspaceSlug());
         String newWorkingHours = req.workingHours() == null ? oldWorkingHours : normalize(req.workingHours());
         String newBusinessOfferings = req.businessOfferings() == null
                 ? oldBusinessOfferings
@@ -52,6 +59,12 @@ public class TenantService {
                 : normalize(req.customSystemPrompt());
         String newIndustry = req.industry() == null ? oldIndustry : req.industry().strip();
 
+        if (!oldSlug.equalsIgnoreCase(newSlug) && tenants.existsBySlug(newSlug)) {
+            throw KonvoException.conflict("That workspace slug is taken");
+        }
+
+        tenant.setName(newName);
+        tenant.setSlug(newSlug);
         tenant.setCustomerMemoryMessageLimit(newLimit);
         tenant.setWorkingHours(newWorkingHours);
         tenant.setBusinessOfferings(newBusinessOfferings);
@@ -60,7 +73,9 @@ public class TenantService {
         Tenant saved = tenants.save(tenant);
         workspaceKnowledgeRollup.sync(actor, saved);
 
-        if (oldLimit != newLimit
+        if (!Objects.equals(oldName, newName)
+                || !Objects.equals(oldSlug, newSlug)
+                || oldLimit != newLimit
                 || !Objects.equals(oldWorkingHours, newWorkingHours)
                 || !Objects.equals(oldBusinessOfferings, newBusinessOfferings)
                 || !Objects.equals(oldCustomSystemPrompt, newCustomSystemPrompt)
@@ -68,6 +83,8 @@ public class TenantService {
             audit.record(actor, AuditAction.WORKSPACE_SETTINGS_UPDATED, saved.getId(),
                     "Updated workspace settings",
                     Map.of(
+                            "workspaceName", Map.of("from", oldName, "to", newName),
+                            "workspaceSlug", Map.of("from", oldSlug, "to", newSlug),
                             "customerMemoryMessageLimit", Map.of("from", oldLimit, "to", newLimit),
                             "workingHoursChanged", !Objects.equals(oldWorkingHours, newWorkingHours),
                             "businessOfferingsChanged", !Objects.equals(oldBusinessOfferings, newBusinessOfferings),
@@ -121,5 +138,21 @@ public class TenantService {
 
     private static String safe(String value) {
         return value == null ? "" : value;
+    }
+
+    private static String normalizeWorkspaceName(String value) {
+        String normalized = SafeText.singleLine(value, "", 120);
+        if (normalized.isBlank()) {
+            throw KonvoException.badRequest("Workspace name is required");
+        }
+        return normalized;
+    }
+
+    private static String normalizeWorkspaceSlug(String value) {
+        String normalized = safe(value).strip().toLowerCase();
+        if (!SLUG.matcher(normalized).matches()) {
+            throw KonvoException.badRequest("Workspace slug must be lower-case letters, numbers, or dashes (3–80 chars)");
+        }
+        return normalized;
     }
 }

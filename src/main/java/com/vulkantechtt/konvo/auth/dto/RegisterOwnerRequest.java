@@ -5,8 +5,6 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 public record RegisterOwnerRequest(
-        @NotBlank @Size(max = 120) String workspaceName,
-        @NotBlank @Size(max = 80) String workspaceSlug,
         @NotBlank @Size(max = 160) String fullName,
         @NotBlank @Email @Size(max = 254) String email,
         @NotBlank @Size(min = 10, max = 100) String password) {

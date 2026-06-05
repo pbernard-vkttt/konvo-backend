@@ -63,6 +63,8 @@ class TenantServiceTest {
                 principal(tenantId),
                 new UpdateTenantSettingsRequest(
                         24,
+                        "Northside",
+                        "northside",
                         " Mon-Fri, 9 am to 5 pm ",
                         "Breakfast menu\nLunch specials",
                         " Keep answers short and mention curbside pickup. ",
@@ -88,7 +90,7 @@ class TenantServiceTest {
         when(tenants.findById(tenantId)).thenReturn(Optional.of(tenant));
         when(tenants.save(any(Tenant.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        service.updateSettings(principal(tenantId), new UpdateTenantSettingsRequest(12, "", "", "", null));
+        service.updateSettings(principal(tenantId), new UpdateTenantSettingsRequest(12, null, null, "", "", "", null));
 
         verify(audit, never()).record(any(), any(), any(), any(), any());
     }
@@ -105,11 +107,34 @@ class TenantServiceTest {
 
         var response = service.updateSettings(
                 principal(tenantId),
-                new UpdateTenantSettingsRequest(20, null, null, null, null));
+                new UpdateTenantSettingsRequest(20, null, null, null, null, null, null));
 
         assertThat(response.workingHours()).isEqualTo("Mon-Fri, 9 am to 5 pm");
         assertThat(response.businessOfferings()).isEqualTo("Lunch menu");
         assertThat(response.customSystemPrompt()).isEqualTo("Answer politely.");
+    }
+
+    @Test
+    void updateSettingsCanRenameWorkspaceAndSlug() {
+        UUID tenantId = UUID.randomUUID();
+        Tenant tenant = tenant(tenantId, 12);
+        when(tenants.findById(tenantId)).thenReturn(Optional.of(tenant));
+        when(tenants.existsBySlug("northside-hq")).thenReturn(false);
+        when(tenants.save(any(Tenant.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        var response = service.updateSettings(
+                principal(tenantId),
+                new UpdateTenantSettingsRequest(
+                        12,
+                        "Northside HQ",
+                        "northside-hq",
+                        "",
+                        "",
+                        "",
+                        null));
+
+        assertThat(response.name()).isEqualTo("Northside HQ");
+        assertThat(response.slug()).isEqualTo("northside-hq");
     }
 
     private static Tenant tenant(UUID id, int memoryLimit) {
