@@ -51,9 +51,17 @@ public class MetaWhatsAppProvider implements WhatsAppProvider {
     private final ObjectMapper json;
 
     public MetaWhatsAppProvider(MetaProperties props, ChannelRepository channels, ObjectMapper json) {
+        this(props, channels, json, RestClient.builder());
+    }
+
+    MetaWhatsAppProvider(
+            MetaProperties props,
+            ChannelRepository channels,
+            ObjectMapper json,
+            RestClient.Builder httpBuilder) {
         this.props = props;
         this.channels = channels;
-        this.http = RestClient.builder().baseUrl(props.getGraphBaseUrl()).build();
+        this.http = httpBuilder.baseUrl(props.getGraphBaseUrl()).build();
         this.json = json;
     }
 
@@ -76,19 +84,20 @@ public class MetaWhatsAppProvider implements WhatsAppProvider {
 
         String path = "/" + props.getGraphApiVersion() + "/" + ch.getPhoneNumberId() + "/messages";
         try {
-            MetaSendResponse resp = http.post()
+            String resp = http.post()
                     .uri(path)
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + ch.getAccessToken())
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body)
                     .retrieve()
-                    .body(MetaSendResponse.class);
+                    .body(String.class);
+            MetaSendResponse parsed = parseMetaResponse(resp, MetaSendResponse.class);
 
-            String waMessageId = resp != null && resp.messages() != null && !resp.messages().isEmpty()
-                    ? resp.messages().get(0).id()
+            String waMessageId = parsed != null && parsed.messages() != null && !parsed.messages().isEmpty()
+                    ? parsed.messages().get(0).id()
                     : null;
             if (waMessageId == null) {
-                log.warn("Meta send returned no wamid for channel={} response={}", cmd.channelId(), resp);
+                log.warn("Meta send returned no wamid for channel={} response={}", cmd.channelId(), parsed);
                 return new SendResult("unknown", "queued");
             }
             return new SendResult(waMessageId, "sent");
@@ -151,15 +160,16 @@ public class MetaWhatsAppProvider implements WhatsAppProvider {
 
         String path = "/" + props.getGraphApiVersion() + "/" + ch.getPhoneNumberId() + "/messages";
         try {
-            MetaSendResponse resp = http.post()
+            String resp = http.post()
                     .uri(path)
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + ch.getAccessToken())
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body)
                     .retrieve()
-                    .body(MetaSendResponse.class);
-            String waMessageId = resp != null && resp.messages() != null && !resp.messages().isEmpty()
-                    ? resp.messages().get(0).id()
+                    .body(String.class);
+            MetaSendResponse parsed = parseMetaResponse(resp, MetaSendResponse.class);
+            String waMessageId = parsed != null && parsed.messages() != null && !parsed.messages().isEmpty()
+                    ? parsed.messages().get(0).id()
                     : null;
             if (waMessageId == null) {
                 log.warn("Meta send-template returned no wamid channel={}", cmd.channelId());
@@ -194,18 +204,19 @@ public class MetaWhatsAppProvider implements WhatsAppProvider {
 
         String path = "/" + props.getGraphApiVersion() + "/" + ch.getWabaId() + "/message_templates";
         try {
-            MetaCreateTemplateResponse resp = http.post()
+            String resp = http.post()
                     .uri(path)
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + ch.getAccessToken())
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body)
                     .retrieve()
-                    .body(MetaCreateTemplateResponse.class);
-            if (resp == null || resp.id() == null || resp.id().isBlank()) {
+                    .body(String.class);
+            MetaCreateTemplateResponse parsed = parseMetaResponse(resp, MetaCreateTemplateResponse.class);
+            if (parsed == null || parsed.id() == null || parsed.id().isBlank()) {
                 log.warn("Meta create-template returned no template id channel={} name={}", cmd.channelId(), cmd.name());
                 return new CreateTemplateResult(null, "PENDING");
             }
-            return new CreateTemplateResult(resp.id(), resp.status());
+            return new CreateTemplateResult(parsed.id(), parsed.status());
         } catch (RestClientResponseException e) {
             int status = e.getStatusCode().value();
             log.warn("Meta create-template failed channel={} status={} body={}",
@@ -236,14 +247,15 @@ public class MetaWhatsAppProvider implements WhatsAppProvider {
         String path = "/" + props.getGraphApiVersion() + "/" + ch.getWabaId()
                 + "/message_templates?limit=100";
         try {
-            MetaTemplateListResponse resp = http.get()
+            String resp = http.get()
                     .uri(path)
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + ch.getAccessToken())
                     .retrieve()
-                    .body(MetaTemplateListResponse.class);
-            if (resp == null || resp.data() == null) return List.of();
-            List<TemplateSummary> out = new ArrayList<>(resp.data().size());
-            for (MetaTemplateListResponse.Row row : resp.data()) {
+                    .body(String.class);
+            MetaTemplateListResponse parsed = parseMetaResponse(resp, MetaTemplateListResponse.class);
+            if (parsed == null || parsed.data() == null) return List.of();
+            List<TemplateSummary> out = new ArrayList<>(parsed.data().size());
+            for (MetaTemplateListResponse.Row row : parsed.data()) {
                 String componentsJson = null;
                 if (row.components() != null) {
                     try {
@@ -293,6 +305,17 @@ public class MetaWhatsAppProvider implements WhatsAppProvider {
     }
 
     record MetaCreateTemplateResponse(String id, String status, String category) {}
+
+    private <T> T parseMetaResponse(String body, Class<T> type) {
+        if (body == null || body.isBlank()) {
+            return null;
+        }
+        try {
+            return json.readValue(body, type);
+        } catch (Exception e) {
+            throw new RestClientException("Could not decode Meta JSON response as " + type.getSimpleName(), e);
+        }
+    }
 
     private String metaErrorMessage(String body, String fallback) {
         try {
