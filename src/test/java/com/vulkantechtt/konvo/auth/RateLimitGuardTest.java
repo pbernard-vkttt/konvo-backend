@@ -63,12 +63,25 @@ class RateLimitGuardTest {
     }
 
     @Test
+    void verificationResendIsLimitedPerEmail() {
+        RateLimitGuard guard = new RateLimitGuard(true);
+        guard.checkEmailVerificationResend("10.0.0.6", "Owner@Konvelo.IO");
+        guard.checkEmailVerificationResend("10.0.0.6", "owner@konvelo.io");
+        guard.checkEmailVerificationResend("10.0.0.6", "OWNER@KONVELO.IO");
+
+        assertThatThrownBy(() -> guard.checkEmailVerificationResend("10.0.0.6", "owner@konvelo.io"))
+                .isInstanceOfSatisfying(KonvoException.class, ex ->
+                        assertThat(ex.getStatus()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS));
+    }
+
+    @Test
     void disabledGuardNeverThrows() {
         RateLimitGuard guard = new RateLimitGuard(false);
         assertThatCode(() -> {
             for (int i = 0; i < 1000; i++) {
                 guard.checkLogin("10.0.0.5", "flood@konvelo.io");
                 guard.checkForgotPassword("10.0.0.5", "flood@konvelo.io");
+                guard.checkEmailVerificationResend("10.0.0.5", "flood@konvelo.io");
             }
         }).doesNotThrowAnyException();
     }

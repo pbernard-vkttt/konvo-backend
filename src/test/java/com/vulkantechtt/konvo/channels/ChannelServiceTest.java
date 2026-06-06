@@ -4,10 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.vulkantechtt.konvo.audit.AuditService;
+import com.vulkantechtt.konvo.auth.EmailVerificationGuard;
 import com.vulkantechtt.konvo.channels.dto.ConnectWhatsAppRequest;
 import com.vulkantechtt.konvo.common.KonvoException;
 import com.vulkantechtt.konvo.security.KonvoPrincipal;
@@ -25,11 +27,12 @@ class ChannelServiceTest {
 
     @Mock ChannelRepository channels;
     @Mock AuditService audit;
+    @Mock EmailVerificationGuard emailVerification;
     private ChannelService service;
 
     @BeforeEach
     void setUp() {
-        service = new ChannelService(channels, audit, "http://api.test");
+        service = new ChannelService(channels, audit, emailVerification, "http://api.test");
     }
 
     private static KonvoPrincipal principal(UUID tenantId) {
@@ -46,6 +49,20 @@ class ChannelServiceTest {
                 .isInstanceOf(KonvoException.class)
                 .hasMessageContaining("already has a WhatsApp channel");
         verify(channels, never()).save(any());
+    }
+
+    @Test
+    void connectWhatsAppRequiresVerifiedEmail() {
+        UUID tenantId = UUID.randomUUID();
+        KonvoPrincipal actor = principal(tenantId);
+        doThrow(new KonvoException(org.springframework.http.HttpStatus.FORBIDDEN,
+                "email_verification_required", "Verify your email to continue."))
+                .when(emailVerification).requireVerified(actor);
+
+        assertThatThrownBy(() -> service.connectWhatsApp(actor, sampleRequest()))
+                .isInstanceOf(KonvoException.class)
+                .hasMessageContaining("Verify your email");
+        verify(channels, never()).existsByTenantIdAndProvider(any(), any());
     }
 
     @Test

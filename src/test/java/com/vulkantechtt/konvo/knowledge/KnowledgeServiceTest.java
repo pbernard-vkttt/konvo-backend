@@ -5,7 +5,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
 
+import com.vulkantechtt.konvo.auth.EmailVerificationGuard;
+import com.vulkantechtt.konvo.common.KonvoException;
 import com.vulkantechtt.konvo.knowledge.dto.CreateTextSourceRequest;
 import com.vulkantechtt.konvo.security.KonvoPrincipal;
 import com.vulkantechtt.konvo.users.Role;
@@ -24,6 +27,8 @@ class KnowledgeServiceTest {
 
     @Mock KnowledgeSourceRepository sources;
     @Mock KnowledgeIndexer indexer;
+    @Mock TextExtractionService extractor;
+    @Mock EmailVerificationGuard emailVerification;
 
     @InjectMocks KnowledgeService service;
 
@@ -70,6 +75,19 @@ class KnowledgeServiceTest {
 
         assertThat(response.id()).isEqualTo(sourceId);
         verify(indexer).indexAsync(sourceId);
+    }
+
+    @Test
+    void createTextRequiresVerifiedEmail() {
+        KonvoPrincipal principal = principal();
+        doThrow(new KonvoException(org.springframework.http.HttpStatus.FORBIDDEN,
+                "email_verification_required", "Verify your email to continue."))
+                .when(emailVerification).requireVerified(principal);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.createText(principal, request()))
+                .isInstanceOf(KonvoException.class)
+                .hasMessageContaining("Verify your email");
+        verify(sources, never()).save(any());
     }
 
     @Test

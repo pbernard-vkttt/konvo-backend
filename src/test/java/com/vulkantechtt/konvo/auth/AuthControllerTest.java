@@ -66,6 +66,45 @@ class AuthControllerTest {
     }
 
     @Test
+    void resendVerificationEmailRateLimitShortCircuitsBeforeHittingTheService() {
+        UUID userId = UUID.randomUUID();
+        UUID tenantId = UUID.randomUUID();
+        KonvoPrincipal principal = new KonvoPrincipal(
+                userId,
+                "owner@example.com",
+                "Owner",
+                tenantId,
+                Role.OWNER);
+        doThrow(KonvoException.tooManyRequests("slow down", 30))
+                .when(rateLimit).checkEmailVerificationResend(any(), eq("owner@example.com"));
+        AuthController controller = new AuthController(authService, cookies, rateLimit, false);
+
+        assertThatThrownBy(() -> controller.resendVerificationEmail(principal, http))
+                .isInstanceOf(KonvoException.class);
+
+        verifyNoInteractions(authService);
+    }
+
+    @Test
+    void resendVerificationEmailDelegatesForAuthenticatedPrincipal() {
+        UUID userId = UUID.randomUUID();
+        UUID tenantId = UUID.randomUUID();
+        KonvoPrincipal principal = new KonvoPrincipal(
+                userId,
+                "owner@example.com",
+                "Owner",
+                tenantId,
+                Role.OWNER);
+        AuthController controller = new AuthController(authService, cookies, rateLimit, false);
+
+        var response = controller.resendVerificationEmail(principal, http);
+
+        assertThat(response.getStatusCode()).isEqualTo(org.springframework.http.HttpStatus.NO_CONTENT);
+        verify(rateLimit).checkEmailVerificationResend(any(), eq("owner@example.com"));
+        verify(authService).resendVerificationEmail(principal);
+    }
+
+    @Test
     void resetPasswordClearsRefreshCookie() {
         AuthController controller = new AuthController(authService, cookies, rateLimit, false);
         when(cookies.buildCleared()).thenReturn(
@@ -145,7 +184,7 @@ class AuthControllerTest {
         return new AuthSessionResponse(
                 "access",
                 900,
-                new AuthSessionResponse.UserSummary(UUID.randomUUID(), "owner@example.com", "Owner"),
+                new AuthSessionResponse.UserSummary(UUID.randomUUID(), "owner@example.com", "Owner", true),
                 new AuthSessionResponse.TenantSummary(UUID.randomUUID(), "Workspace", "workspace", Role.OWNER, true));
     }
 }

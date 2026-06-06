@@ -103,6 +103,15 @@ public class AuthController {
         return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/verify-email/resend")
+    public ResponseEntity<Void> resendVerificationEmail(
+            @AuthenticationPrincipal KonvoPrincipal principal,
+            HttpServletRequest http) {
+        rateLimit.checkEmailVerificationResend(clientIp(http), principal.email());
+        authService.resendVerificationEmail(principal);
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/invitations/{token}/preview")
     public InvitationPreviewResponse previewInvitation(@PathVariable String token) {
         return authService.previewInvitation(token);

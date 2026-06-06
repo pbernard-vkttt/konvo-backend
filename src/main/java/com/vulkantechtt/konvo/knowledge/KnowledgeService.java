@@ -1,5 +1,6 @@
 package com.vulkantechtt.konvo.knowledge;
 
+import com.vulkantechtt.konvo.auth.EmailVerificationGuard;
 import com.vulkantechtt.konvo.common.KonvoException;
 import com.vulkantechtt.konvo.common.PageResponse;
 import com.vulkantechtt.konvo.knowledge.dto.CreateTextSourceRequest;
@@ -31,14 +32,17 @@ public class KnowledgeService {
     private final KnowledgeSourceRepository sources;
     private final KnowledgeIndexer indexer;
     private final TextExtractionService extractor;
+    private final EmailVerificationGuard emailVerification;
 
     public KnowledgeService(
             KnowledgeSourceRepository sources,
             KnowledgeIndexer indexer,
-            TextExtractionService extractor) {
+            TextExtractionService extractor,
+            EmailVerificationGuard emailVerification) {
         this.sources = sources;
         this.indexer = indexer;
         this.extractor = extractor;
+        this.emailVerification = emailVerification;
     }
 
     @Transactional(readOnly = true)
@@ -55,6 +59,7 @@ public class KnowledgeService {
 
     @Transactional
     public KnowledgeSourceResponse createText(KonvoPrincipal principal, CreateTextSourceRequest req) {
+        emailVerification.requireVerified(principal);
         KnowledgeSource source = new KnowledgeSource();
         source.setTenantId(principal.tenantId());
         source.setTitle(req.title());
@@ -75,6 +80,7 @@ public class KnowledgeService {
      */
     @Transactional
     public KnowledgeSourceResponse createFromFile(KonvoPrincipal principal, String title, MultipartFile file) {
+        emailVerification.requireVerified(principal);
         if (file == null || file.isEmpty()) {
             throw KonvoException.badRequest("Choose a file to upload");
         }
@@ -96,6 +102,7 @@ public class KnowledgeService {
     /** Ingest a web page by URL: fetch, strip to text, then index. */
     @Transactional
     public KnowledgeSourceResponse createFromUrl(KonvoPrincipal principal, CreateUrlSourceRequest req) {
+        emailVerification.requireVerified(principal);
         String text = extractor.extractFromUrl(req.url());
         String resolvedTitle = firstNonBlank(req.title(), hostOf(req.url()), "Imported page");
         return persistExtracted(principal, resolvedTitle, KnowledgeSourceType.url, text);
@@ -169,6 +176,7 @@ public class KnowledgeService {
 
     @Transactional
     public void delete(KonvoPrincipal principal, UUID id) {
+        emailVerification.requireVerified(principal);
         KnowledgeSource source = requireOwned(principal, id);
         sources.delete(source); // chunks cascade
     }

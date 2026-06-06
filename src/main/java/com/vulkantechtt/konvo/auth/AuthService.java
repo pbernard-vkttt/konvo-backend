@@ -209,7 +209,7 @@ public class AuthService {
         TenantMembership membership = activateMembership(user, tenant, Role.OWNER);
 
         sendWelcomeEmail(user);
-        sendVerificationEmail(user);
+        sendVerificationEmail(user, true);
 
         refreshTokens.revoke(presentedRawCookie);
         return buildSession(user, membership, http);
@@ -343,6 +343,19 @@ public class AuthService {
         log.info("Email verified for user {}", user.getId());
     }
 
+    @Transactional
+    public void resendVerificationEmail(com.vulkantechtt.konvo.security.KonvoPrincipal principal) {
+        User user = userRepository.findById(principal.userId())
+                .orElseThrow(() -> new KonvoException(
+                        org.springframework.http.HttpStatus.UNAUTHORIZED,
+                        "unauthenticated",
+                        "Authentication required"));
+        if (user.isEmailVerified()) {
+            return;
+        }
+        sendVerificationEmail(user, false);
+    }
+
     @Transactional(readOnly = true)
     public InvitationPreviewResponse previewInvitation(String rawToken) {
         UserInvitation invitation = invitationRepository.findByTokenHash(TokenHasher.hash(rawToken))
@@ -376,6 +389,10 @@ public class AuthService {
                     u.setLastLoginAt(now);
                     return userRepository.save(u);
                 });
+        if (!user.isEmailVerified()) {
+            user.setEmailVerified(true);
+            user = userRepository.save(user);
+        }
 
         TenantMembership membership = membershipRepository
                 .findByTenantIdAndUserId(tenant.getId(), user.getId())
@@ -560,7 +577,7 @@ public class AuthService {
         }
     }
 
-    private void sendVerificationEmail(User user) {
+    private void sendVerificationEmail(User user, boolean suppressFailures) {
         try {
             String raw = TokenHasher.randomToken();
             EmailVerificationToken token = new EmailVerificationToken();
@@ -579,6 +596,12 @@ public class AuthService {
                     "Verify your email address",
                     html));
         } catch (Exception e) {
+            if (!suppressFailures) {
+                if (e instanceof RuntimeException runtime) {
+                    throw runtime;
+                }
+                throw new IllegalStateException("Verification email failed", e);
+            }
             log.warn("Verification email failed for user {}: {}", user.getId(), e.getMessage());
         }
     }
@@ -629,7 +652,7 @@ public class AuthService {
         return new AuthSessionResponse(
                 access,
                 ttlSeconds,
-                new UserSummary(user.getId(), user.getEmail(), user.getFullName()),
+                new UserSummary(user.getId(), user.getEmail(), user.getFullName(), user.isEmailVerified()),
                 new TenantSummary(m.getTenant().getId(), m.getTenant().getName(), m.getTenant().getSlug(), m.getRole(), m.getTenant().isOnboardingCompleted()));
     }
 

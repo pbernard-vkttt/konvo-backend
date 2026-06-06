@@ -6,6 +6,7 @@ import com.vulkantechtt.konvo.auth.TokenHasher;
 import com.vulkantechtt.konvo.auth.UserInvitation;
 import com.vulkantechtt.konvo.auth.UserInvitationRepository;
 import com.vulkantechtt.konvo.auth.AuthService;
+import com.vulkantechtt.konvo.auth.EmailVerificationGuard;
 import com.vulkantechtt.konvo.common.KonvoException;
 import com.vulkantechtt.konvo.common.SafeText;
 import com.vulkantechtt.konvo.email.EmailSender;
@@ -50,6 +51,7 @@ public class MemberService {
     private final AuditService audit;
     private final EmailSender email;
     private final EmailTemplateRenderer templates;
+    private final EmailVerificationGuard emailVerification;
     private final String appBaseUrl;
     private final boolean devTokenInResponse;
 
@@ -61,6 +63,7 @@ public class MemberService {
             AuditService audit,
             EmailSender email,
             EmailTemplateRenderer templates,
+            EmailVerificationGuard emailVerification,
             @org.springframework.beans.factory.annotation.Value("${konvo.public-base-url.app}") String appBaseUrl,
             @org.springframework.beans.factory.annotation.Value("${konvo.auth.dev-token-in-response:false}") boolean devTokenInResponse) {
         this.memberships = memberships;
@@ -70,6 +73,7 @@ public class MemberService {
         this.audit = audit;
         this.email = email;
         this.templates = templates;
+        this.emailVerification = emailVerification;
         this.devTokenInResponse = devTokenInResponse;
         this.appBaseUrl = appBaseUrl == null || appBaseUrl.isBlank()
                 ? "http://localhost:4200"
@@ -118,6 +122,7 @@ public class MemberService {
 
     @Transactional
     public InvitationResponse invite(KonvoPrincipal actor, InviteMemberRequest req) {
+        emailVerification.requireVerified(actor);
         guardCanManageTeam(actor);
         guardCanAssignRole(actor, req.role());
         UUID tenantId = actor.tenantId();
@@ -158,6 +163,7 @@ public class MemberService {
 
     @Transactional
     public void revokeInvitation(KonvoPrincipal actor, UUID invitationId) {
+        emailVerification.requireVerified(actor);
         guardCanManageTeam(actor);
         UUID tenantId = actor.tenantId();
         UserInvitation inv = invitations.findById(invitationId)
@@ -174,6 +180,7 @@ public class MemberService {
 
     @Transactional
     public MemberResponse changeRole(KonvoPrincipal actor, UUID membershipId, Role newRole) {
+        emailVerification.requireVerified(actor);
         guardCanManageTeam(actor);
         UUID tenantId = actor.tenantId();
         UUID actingUserId = actor.userId();
@@ -202,6 +209,7 @@ public class MemberService {
 
     @Transactional
     public void remove(KonvoPrincipal actor, UUID membershipId) {
+        emailVerification.requireVerified(actor);
         guardCanManageTeam(actor);
         UUID tenantId = actor.tenantId();
         UUID actingUserId = actor.userId();

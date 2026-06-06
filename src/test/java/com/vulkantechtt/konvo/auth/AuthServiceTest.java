@@ -136,6 +136,7 @@ class AuthServiceTest {
                 http);
 
         assertThat(session.body().user().email()).isEqualTo("alice@example.com");
+        assertThat(session.body().user().emailVerified()).isTrue();
         assertThat(session.body().tenant().role()).isEqualTo(Role.OWNER);
 
         ArgumentCaptor<Tenant> tenantCaptor = ArgumentCaptor.forClass(Tenant.class);
@@ -185,6 +186,7 @@ class AuthServiceTest {
 
         assertThat(session.body().tenant().name()).isEqualTo("Owner Name's workspace");
         assertThat(session.body().tenant().slug()).isEqualTo("owner-name");
+        assertThat(session.body().user().emailVerified()).isFalse();
         verify(refreshTokens).revoke("old-refresh-token");
 
         ArgumentCaptor<Tenant> tenantCaptor = ArgumentCaptor.forClass(Tenant.class);
@@ -278,6 +280,49 @@ class AuthServiceTest {
         assertThat(user.isEmailVerified()).isFalse();
         assertThat(identity.getEmail()).isEqualTo("google@personal.test");
         assertThat(session.body().user().email()).isEqualTo("owner@old.test");
+        assertThat(session.body().user().emailVerified()).isFalse();
+    }
+
+    @Test
+    void resendVerificationEmailNoOpsForAlreadyVerifiedUser() {
+        UUID userId = UUID.randomUUID();
+        User user = new User();
+        user.setId(userId);
+        user.setEmail("owner@example.com");
+        user.setFullName("Owner");
+        user.setEmailVerified(true);
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+
+        service.resendVerificationEmail(new com.vulkantechtt.konvo.security.KonvoPrincipal(
+                userId,
+                "owner@example.com",
+                "Owner",
+                UUID.randomUUID(),
+                Role.OWNER));
+
+        verify(emailVerificationRepository, never()).save(any());
+        verify(email, never()).send(any());
+    }
+
+    @Test
+    void resendVerificationEmailSendsNewTokenForUnverifiedUser() {
+        UUID userId = UUID.randomUUID();
+        User user = new User();
+        user.setId(userId);
+        user.setEmail("owner@example.com");
+        user.setFullName("Owner");
+        user.setEmailVerified(false);
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+
+        service.resendVerificationEmail(new com.vulkantechtt.konvo.security.KonvoPrincipal(
+                userId,
+                "owner@example.com",
+                "Owner",
+                UUID.randomUUID(),
+                Role.OWNER));
+
+        verify(emailVerificationRepository).save(any(EmailVerificationToken.class));
+        verify(email).send(any(EmailSender.EmailMessage.class));
     }
 
     @Test
@@ -409,8 +454,54 @@ class AuthServiceTest {
 
         assertThat(response.accessToken()).isEqualTo("access-token");
         assertThat(response.user().fullName()).isEqualTo("Owner Name");
+        assertThat(response.user().emailVerified()).isFalse();
         assertThat(response.tenant().slug()).isEqualTo("owner-workspace");
         assertThat(response.tenant().role()).isEqualTo(Role.OWNER);
+    }
+
+    @Test
+    void acceptInvitationMarksExistingUserEmailVerified() {
+        UUID tenantId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UserInvitation invitation = new UserInvitation();
+        invitation.setTenantId(tenantId);
+        invitation.setEmail("member@example.com");
+        invitation.setRole(Role.AGENT);
+        invitation.setTokenHash(TokenHasher.hash("raw-invite"));
+        invitation.setExpiresAt(Instant.now().plusSeconds(3600));
+
+        Tenant tenant = new Tenant();
+        tenant.setId(tenantId);
+        tenant.setName("Northside");
+        tenant.setSlug("northside");
+
+        User user = new User();
+        user.setId(userId);
+        user.setEmail("member@example.com");
+        user.setFullName("Member Name");
+        user.setEmailVerified(false);
+
+        when(invitationRepository.findByTokenHash(TokenHasher.hash("raw-invite")))
+                .thenReturn(Optional.of(invitation));
+        when(tenantRepository.findById(tenantId)).thenReturn(Optional.of(tenant));
+        when(userRepository.findByEmailIgnoreCase("member@example.com")).thenReturn(Optional.of(user));
+        when(userRepository.save(user)).thenReturn(user);
+        when(membershipRepository.findByTenantIdAndUserId(tenantId, userId)).thenReturn(Optional.empty());
+        when(membershipRepository.save(any(TenantMembership.class))).thenAnswer(invocation -> {
+            TenantMembership membership = invocation.getArgument(0);
+            if (membership.getId() == null) {
+                membership.setId(UUID.randomUUID());
+            }
+            return membership;
+        });
+
+        AuthService.Session session = service.acceptInvitation(
+                new com.vulkantechtt.konvo.auth.dto.AcceptInvitationRequest("raw-invite", "Member Name", "password-123"),
+                http);
+
+        assertThat(user.isEmailVerified()).isTrue();
+        assertThat(session.body().user().emailVerified()).isTrue();
+        verify(userRepository).save(user);
     }
 
     private static Subscription subscription(String planId) {

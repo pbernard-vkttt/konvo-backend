@@ -2,6 +2,7 @@ package com.vulkantechtt.konvo.channels;
 
 import com.vulkantechtt.konvo.audit.AuditAction;
 import com.vulkantechtt.konvo.audit.AuditService;
+import com.vulkantechtt.konvo.auth.EmailVerificationGuard;
 import com.vulkantechtt.konvo.auth.TokenHasher;
 import com.vulkantechtt.konvo.channels.dto.ChannelResponse;
 import com.vulkantechtt.konvo.channels.dto.ConnectWhatsAppRequest;
@@ -27,13 +28,16 @@ public class ChannelService {
 
     private final ChannelRepository channels;
     private final AuditService audit;
+    private final EmailVerificationGuard emailVerification;
     private final String apiBaseUrl;
 
     public ChannelService(ChannelRepository channels,
                           AuditService audit,
+                          EmailVerificationGuard emailVerification,
                           @Value("${konvo.public-base-url.api}") String apiBaseUrl) {
         this.channels = channels;
         this.audit = audit;
+        this.emailVerification = emailVerification;
         this.apiBaseUrl = trimTrailingSlash(apiBaseUrl);
     }
 
@@ -50,6 +54,7 @@ public class ChannelService {
 
     @Transactional
     public ChannelResponse connectWhatsApp(KonvoPrincipal actor, ConnectWhatsAppRequest req) {
+        emailVerification.requireVerified(actor);
         UUID tenantId = actor.tenantId();
         if (channels.existsByTenantIdAndProvider(tenantId, ChannelProvider.whatsapp_meta)) {
             throw KonvoException.conflict("This workspace already has a WhatsApp channel connected");
@@ -80,6 +85,7 @@ public class ChannelService {
 
     @Transactional
     public ChannelResponse update(KonvoPrincipal actor, UUID id, UpdateChannelRequest req) {
+        emailVerification.requireVerified(actor);
         UUID tenantId = actor.tenantId();
         Channel ch = requireOwned(tenantId, id);
         String previousName = ch.getDisplayName();
@@ -99,6 +105,7 @@ public class ChannelService {
 
     @Transactional
     public void disconnect(KonvoPrincipal actor, UUID id) {
+        emailVerification.requireVerified(actor);
         UUID tenantId = actor.tenantId();
         Channel ch = requireOwned(tenantId, id);
         channels.delete(ch);

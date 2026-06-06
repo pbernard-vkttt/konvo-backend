@@ -10,7 +10,7 @@ public record AuthSessionResponse(
         UserSummary user,
         TenantSummary tenant) {
 
-    public record UserSummary(UUID id, String email, String fullName) {}
+    public record UserSummary(UUID id, String email, String fullName, boolean emailVerified) {}
 
     public record TenantSummary(UUID id, String name, String slug, Role role, boolean onboardingCompleted) {}
 }

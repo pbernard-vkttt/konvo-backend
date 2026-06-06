@@ -57,6 +57,8 @@ public class RateLimitGuard {
     private static final Rule LOGIN_PER_EMAIL = new Rule(8, Duration.ofMinutes(15));
     private static final Rule FORGOT_PER_IP = new Rule(5, Duration.ofMinutes(15));
     private static final Rule FORGOT_PER_EMAIL = new Rule(4, Duration.ofHours(1));
+    private static final Rule VERIFY_RESEND_PER_IP = new Rule(5, Duration.ofMinutes(15));
+    private static final Rule VERIFY_RESEND_PER_EMAIL = new Rule(3, Duration.ofHours(1));
 
     private final ConcurrentHashMap<String, Cached> buckets = new ConcurrentHashMap<>();
     private final boolean enabled;
@@ -77,6 +79,13 @@ public class RateLimitGuard {
         if (!enabled) return;
         consume("forgot:ip:" + ip, FORGOT_PER_IP, "Too many password-reset requests from this network");
         consume("forgot:email:" + normalize(email), FORGOT_PER_EMAIL, "Too many password-reset requests for this account");
+    }
+
+    /** Throttle verification resend requests by both source IP and signed-in email. */
+    public void checkEmailVerificationResend(String ip, String email) {
+        if (!enabled) return;
+        consume("verify-email:ip:" + ip, VERIFY_RESEND_PER_IP, "Too many verification emails from this network");
+        consume("verify-email:email:" + normalize(email), VERIFY_RESEND_PER_EMAIL, "Too many verification emails for this account");
     }
 
     private void consume(String key, Rule rule, String message) {

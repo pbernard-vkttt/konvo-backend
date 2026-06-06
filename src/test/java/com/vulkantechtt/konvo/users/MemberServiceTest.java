@@ -7,8 +7,10 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
 
 import com.vulkantechtt.konvo.audit.AuditService;
+import com.vulkantechtt.konvo.auth.EmailVerificationGuard;
 import com.vulkantechtt.konvo.auth.UserInvitationRepository;
 import com.vulkantechtt.konvo.common.KonvoException;
 import com.vulkantechtt.konvo.email.EmailSender;
@@ -36,6 +38,7 @@ class MemberServiceTest {
     @Mock AuditService audit;
     @Mock EmailSender email;
     @Mock EmailTemplateRenderer templates;
+    @Mock EmailVerificationGuard emailVerification;
 
     MemberService service;
 
@@ -51,6 +54,7 @@ class MemberServiceTest {
                 audit,
                 email,
                 templates,
+                emailVerification,
                 "http://app.test",
                 false);
     }
@@ -132,6 +136,19 @@ class MemberServiceTest {
         assertThatThrownBy(() -> service.invite(principal(UUID.randomUUID(), Role.ADMIN), req))
                 .isInstanceOf(KonvoException.class)
                 .hasMessageContaining("role above yours");
+        verify(invitations, never()).save(any());
+    }
+
+    @Test
+    void inviteRequiresVerifiedEmail() {
+        KonvoPrincipal actor = principal(UUID.randomUUID(), Role.OWNER);
+        doThrow(new KonvoException(org.springframework.http.HttpStatus.FORBIDDEN,
+                "email_verification_required", "Verify your email to continue."))
+                .when(emailVerification).requireVerified(actor);
+
+        assertThatThrownBy(() -> service.invite(actor, new InviteMemberRequest("agent@example.com", Role.AGENT)))
+                .isInstanceOf(KonvoException.class)
+                .hasMessageContaining("Verify your email");
         verify(invitations, never()).save(any());
     }
 
