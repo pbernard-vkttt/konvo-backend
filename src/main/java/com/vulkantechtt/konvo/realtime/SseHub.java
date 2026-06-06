@@ -32,6 +32,10 @@ public class SseHub {
 
     public SseEmitter register(UUID tenantId) {
         SseEmitter emitter = new SseEmitter(0L); // never time out from server side
+        return register(tenantId, emitter);
+    }
+
+    SseEmitter register(UUID tenantId, SseEmitter emitter) {
         tenants.computeIfAbsent(tenantId, t -> new CopyOnWriteArraySet<>()).add(emitter);
         Runnable cleanup = () -> {
             var set = tenants.get(tenantId);
@@ -42,7 +46,8 @@ public class SseHub {
         emitter.onError(e -> cleanup.run());
         try {
             emitter.send(SseEmitter.event().name("ready").data("ok"));
-        } catch (IOException e) {
+        } catch (IOException | IllegalStateException e) {
+            log.debug("Dropping dead SSE emitter during registration for tenant={}: {}", tenantId, e.toString());
             cleanup.run();
         }
         return emitter;
@@ -67,7 +72,7 @@ public class SseHub {
         for (SseEmitter emitter : set) {
             try {
                 emitter.send(SseEmitter.event().name(eventName).data(payload));
-            } catch (IOException e) {
+            } catch (IOException | IllegalStateException e) {
                 log.debug("Dropping dead SSE emitter for tenant={}: {}", tenantId, e.toString());
                 set.remove(emitter);
             }
