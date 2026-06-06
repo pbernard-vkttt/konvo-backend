@@ -172,6 +172,15 @@ konvo:
       app-secret: ${META_APP_SECRET:}
       verify-token: ${META_VERIFY_TOKEN:konvo-dev-verify}
       webhook-secret: ${META_WEBHOOK_SECRET:}
+  scheduling:
+    # Google Calendar connect flow (per-workspace). Reuses the platform Google
+    # OAuth client by default, but a DISTINCT redirect URI — register
+    # {api-base}/api/v1/scheduling/google/callback as an authorized redirect URI
+    # in Google Cloud and enable the Calendar API. Separate from oauth2Login.
+    google:
+      client-id: ${GOOGLE_CLIENT_ID:}
+      client-secret: ${GOOGLE_CLIENT_SECRET:}
+      redirect-uri: ${SCHEDULING_GOOGLE_REDIRECT_URI:${API_PUBLIC_BASE_URL:http://localhost:8080}/api/v1/scheduling/google/callback}
   storage:
     provider: ${STORAGE_PROVIDER:local}
     r2:

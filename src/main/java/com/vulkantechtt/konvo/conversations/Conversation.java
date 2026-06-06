@@ -8,6 +8,8 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.UUID;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "conversations")
@@ -41,6 +43,12 @@ public class Conversation extends BaseEntity {
     @Column(name = "auto_reply_enabled", nullable = false)
     private boolean autoReplyEnabled = true;
 
+    // Vee's in-flight booking state (offered slots + step) as JSON, or null when
+    // no booking is in progress. See VeeBookingService.
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "pending_booking", columnDefinition = "jsonb")
+    private String pendingBooking;
+
     public UUID getTenantId() { return tenantId; }
     public void setTenantId(UUID tenantId) { this.tenantId = tenantId; }
 
@@ -64,4 +72,7 @@ public class Conversation extends BaseEntity {
 
     public boolean isAutoReplyEnabled() { return autoReplyEnabled; }
     public void setAutoReplyEnabled(boolean autoReplyEnabled) { this.autoReplyEnabled = autoReplyEnabled; }
+
+    public String getPendingBooking() { return pendingBooking; }
+    public void setPendingBooking(String pendingBooking) { this.pendingBooking = pendingBooking; }
 }

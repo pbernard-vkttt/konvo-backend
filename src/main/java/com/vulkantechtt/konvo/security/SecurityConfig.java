@@ -58,6 +58,7 @@ public class SecurityConfig {
                                 "/api/v1/auth/invitations/*/preview",
                                 "/oauth2/authorization/*",
                                 "/login/oauth2/code/*",
+                                "/api/v1/scheduling/google/callback",
                                 "/api/v1/realtime/stream"
                         ).permitAll()
                         .anyRequest().authenticated())

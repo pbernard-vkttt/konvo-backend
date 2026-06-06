@@ -48,6 +48,7 @@ class AiReplyListenerTest {
     @Mock SubscriptionService subscriptions;
     @Mock UsageService usage;
     @Mock NotificationService notifications;
+    @Mock com.vulkantechtt.konvo.scheduling.VeeBookingService veeBooking;
 
     private AiReplyListener listener;
 
@@ -70,7 +71,8 @@ class AiReplyListenerTest {
                 runs,
                 subscriptions,
                 usage,
-                notifications);
+                notifications,
+                veeBooking);
         when(completion.name()).thenReturn("stub");
     }
 

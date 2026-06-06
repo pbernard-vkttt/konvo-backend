@@ -21,7 +21,13 @@ public enum AuditAction {
     TEMPLATE_SYNCED("template.synced", "template"),
     TEMPLATE_SENT("template.sent", "template"),
 
-    SUBSCRIPTION_PROVISIONED("subscription.provisioned", "subscription");
+    SUBSCRIPTION_PROVISIONED("subscription.provisioned", "subscription"),
+
+    SCHEDULING_SETTINGS_UPDATED("scheduling.settings.updated", "scheduling"),
+    SCHEDULING_GOOGLE_CONNECTED("scheduling.google.connected", "scheduling"),
+    SCHEDULING_GOOGLE_DISCONNECTED("scheduling.google.disconnected", "scheduling"),
+    APPOINTMENT_BOOKED("appointment.booked", "appointment"),
+    APPOINTMENT_CANCELLED("appointment.cancelled", "appointment");
 
     private final String code;
     private final String entityType;

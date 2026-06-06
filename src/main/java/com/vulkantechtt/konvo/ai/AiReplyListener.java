@@ -50,6 +50,7 @@ public class AiReplyListener {
     private final com.vulkantechtt.konvo.billing.SubscriptionService subscriptions;
     private final com.vulkantechtt.konvo.billing.UsageService usage;
     private final com.vulkantechtt.konvo.notifications.NotificationService notifications;
+    private final com.vulkantechtt.konvo.scheduling.VeeBookingService veeBooking;
 
     public AiReplyListener(
             AiCompletionProvider completion,
@@ -62,7 +63,8 @@ public class AiReplyListener {
             AiRunRecorder runs,
             com.vulkantechtt.konvo.billing.SubscriptionService subscriptions,
             com.vulkantechtt.konvo.billing.UsageService usage,
-            com.vulkantechtt.konvo.notifications.NotificationService notifications) {
+            com.vulkantechtt.konvo.notifications.NotificationService notifications,
+            com.vulkantechtt.konvo.scheduling.VeeBookingService veeBooking) {
         this.completion = completion;
         this.retriever = retriever;
         this.conversations = conversations;
@@ -74,6 +76,7 @@ public class AiReplyListener {
         this.subscriptions = subscriptions;
         this.usage = usage;
         this.notifications = notifications;
+        this.veeBooking = veeBooking;
     }
 
     @RabbitListener(queues = RabbitConfig.AI_REPLY_QUEUE)
@@ -114,6 +117,18 @@ public class AiReplyListener {
             log.warn("AI reply skipped — missing customer {}", cmd.customerId());
             return;
         }
+
+        // Vee scheduling: if the customer is trying to book (or is mid-booking),
+        // handle it here and skip the normal knowledge-base reply.
+        try {
+            if (veeBooking.handle(conv, customer.getPhone(), cmd.inboundBody())) {
+                return;
+            }
+        } catch (RuntimeException e) {
+            log.warn("Vee booking flow errored for conversation {} — falling back to normal reply",
+                    conv.getId(), e);
+        }
+
         Tenant tenant = tenants.findById(cmd.tenantId()).orElse(null);
         String workspaceName = tenant != null ? tenant.getName() : "this workspace";
         String customSystemPrompt = tenant != null ? tenant.getCustomSystemPrompt() : "";
