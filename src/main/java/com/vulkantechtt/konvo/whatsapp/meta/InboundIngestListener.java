@@ -276,14 +276,29 @@ public class InboundIngestListener {
             case "failed" -> {
                 if (m.getStatus() != MessageStatus.delivered && m.getStatus() != MessageStatus.read) {
                     m.setStatus(MessageStatus.failed);
-                    if (s.errors() != null) {
-                        m.setErrorCode(s.errors().code());
-                        m.setErrorMessage(s.errors().title());
+                    MetaWebhookPayload.ErrorDetail error = firstError(s.errors());
+                    if (error != null) {
+                        m.setErrorCode(error.code());
+                        m.setErrorMessage(firstPresent(error.title(), error.message()));
                     }
                 }
             }
             default -> { /* unknown status — leave row as-is */ }
         }
+    }
+
+    private static MetaWebhookPayload.ErrorDetail firstError(List<MetaWebhookPayload.ErrorDetail> errors) {
+        if (errors == null || errors.isEmpty()) {
+            return null;
+        }
+        return errors.getFirst();
+    }
+
+    private static String firstPresent(String preferred, String fallback) {
+        if (preferred != null && !preferred.isBlank()) {
+            return preferred;
+        }
+        return fallback;
     }
 
     private static void advanceStatus(Message m, MessageStatus target) {

@@ -1,5 +1,6 @@
 package com.vulkantechtt.konvo.whatsapp.meta;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import java.util.List;
 
 /**
@@ -56,7 +57,8 @@ public record MetaWebhookPayload(String object, List<Entry> entry) {
             String status,
             String timestamp,
             String recipient_id,
-            Errors errors) {}
+            @JsonFormat(with = JsonFormat.Feature.ACCEPT_SINGLE_VALUE_AS_ARRAY)
+            List<ErrorDetail> errors) {}
 
-    public record Errors(String code, String title, String message) {}
+    public record ErrorDetail(String code, String title, String message) {}
 }

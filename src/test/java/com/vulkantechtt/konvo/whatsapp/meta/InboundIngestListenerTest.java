@@ -235,7 +235,8 @@ class InboundIngestListenerTest {
                         "failed",
                         "1700000004",
                         FROM,
-                        new MetaWebhookPayload.Errors("131000", "Message failed", "Provider rejected it")));
+                        List.of(new MetaWebhookPayload.ErrorDetail(
+                                "131000", "Message failed", "Provider rejected it"))));
         wireStatusPayload(payload, raw, outboundMessage(MessageStatus.sent));
         when(messages.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
