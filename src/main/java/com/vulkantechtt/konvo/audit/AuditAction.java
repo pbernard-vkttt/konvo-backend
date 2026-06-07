@@ -22,6 +22,7 @@ public enum AuditAction {
     TEMPLATE_SENT("template.sent", "template"),
 
     SUBSCRIPTION_PROVISIONED("subscription.provisioned", "subscription"),
+    SUBSCRIPTION_PLAN_CHANGED("subscription.plan_changed", "subscription"),
 
     SCHEDULING_SETTINGS_UPDATED("scheduling.settings.updated", "scheduling"),
     SCHEDULING_GOOGLE_CONNECTED("scheduling.google.connected", "scheduling"),
