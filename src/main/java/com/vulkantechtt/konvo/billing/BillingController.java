@@ -66,7 +66,11 @@ public class BillingController {
                 sub.getPeriodStart(),
                 sub.getPeriodEnd(),
                 toSummary(plan),
-                new BillingSnapshot.UsageSummary(s.messagesSent(), s.aiRuns(), s.aiTokens()),
+                new BillingSnapshot.UsageSummary(
+                        s.activeCustomers(),
+                        s.aiRuns(),
+                        s.knowledgeChars(),
+                        s.members()),
                 usage.isOverAiQuota(s, plan));
     }
 
@@ -74,11 +78,11 @@ public class BillingController {
         return new PlanSummary(
                 plan.getId(),
                 plan.getName(),
+                plan.getMonthlyPriceTtd(),
                 plan.getMonthlyPriceUsd(),
-                plan.getMsgMonthlyLimit(),
+                plan.getCustomerMonthlyLimit(),
                 plan.getAiRunsMonthlyLimit(),
-                plan.getAiTokensMonthlyLimit(),
-                plan.getKnowledgeSourcesLimit(),
+                plan.getKnowledgeCharsLimit(),
                 plan.getMembersLimit());
     }
 }

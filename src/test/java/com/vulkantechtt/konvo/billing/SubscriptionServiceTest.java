@@ -48,10 +48,16 @@ class SubscriptionServiceTest {
     void publicPlansReturnsPublicCataloguePlans() {
         Plan enterprise = plan("enterprise", "Enterprise", 0);
         enterprise.setPublic(false);
-        List<Plan> catalogue = List.of(plan("free", "Free", 0), plan("pro", "Pro", 99), enterprise);
+        List<Plan> catalogue = List.of(
+                plan("free", "Free", 0),
+                plan("starter", "Starter", 44),
+                plan("growth", "Growth", 148),
+                plan("business", "Business", 325),
+                enterprise);
         when(plans.findAll(any(Sort.class))).thenReturn(catalogue);
 
-        assertThat(service.publicPlans()).extracting(Plan::getId).containsExactly("free", "pro");
+        assertThat(service.publicPlans()).extracting(Plan::getId)
+                .containsExactly("free", "starter", "growth", "business");
     }
 
     @Test
@@ -59,46 +65,63 @@ class SubscriptionServiceTest {
         UUID tenantId = UUID.randomUUID();
         KonvoPrincipal actor = principal(tenantId);
         Plan free = plan("free", "Free", 0);
-        Plan pro = plan("pro", "Pro", 99);
+        Plan business = plan("business", "Business", 325);
         Subscription sub = subscription(tenantId, free);
         Tenant tenant = tenant(tenantId, "free");
         when(subscriptions.findFirstByTenantIdAndStatus(tenantId, SubscriptionStatus.active))
                 .thenReturn(Optional.of(sub));
-        when(plans.findById("pro")).thenReturn(Optional.of(pro));
+        when(plans.findById("business")).thenReturn(Optional.of(business));
         when(subscriptions.save(sub)).thenReturn(sub);
         when(tenants.findById(tenantId)).thenReturn(Optional.of(tenant));
 
-        Subscription changed = service.changePlan(actor, " PRO ");
+        Subscription changed = service.changePlan(actor, " BUSINESS ");
 
-        assertThat(changed.getPlan().getId()).isEqualTo("pro");
-        assertThat(tenant.getPlan()).isEqualTo("pro");
+        assertThat(changed.getPlan().getId()).isEqualTo("business");
+        assertThat(tenant.getPlan()).isEqualTo("business");
         verify(subscriptions).save(sub);
         verify(tenants).save(tenant);
 
         ArgumentCaptor<Map<String, ?>> diff = ArgumentCaptor.forClass(Map.class);
         verify(audit).record(eq(actor), eq(AuditAction.SUBSCRIPTION_PLAN_CHANGED), eq(sub.getId()),
-                eq("Changed subscription plan from Free to Pro"), diff.capture());
+                eq("Changed subscription plan from Free to Business"), diff.capture());
         assertThat(diff.getValue().get("from")).isEqualTo("free");
-        assertThat(diff.getValue().get("to")).isEqualTo("pro");
+        assertThat(diff.getValue().get("to")).isEqualTo("business");
     }
 
     @Test
     void samePlanRequestSyncsTenantPlanWithoutSavingSubscriptionOrAuditing() {
         UUID tenantId = UUID.randomUUID();
-        Plan pro = plan("pro", "Pro", 99);
-        Subscription sub = subscription(tenantId, pro);
+        Plan business = plan("business", "Business", 325);
+        Subscription sub = subscription(tenantId, business);
         Tenant tenant = tenant(tenantId, "free");
         when(subscriptions.findFirstByTenantIdAndStatus(tenantId, SubscriptionStatus.active))
                 .thenReturn(Optional.of(sub));
-        when(plans.findById("pro")).thenReturn(Optional.of(pro));
+        when(plans.findById("business")).thenReturn(Optional.of(business));
         when(tenants.findById(tenantId)).thenReturn(Optional.of(tenant));
 
-        Subscription unchanged = service.changePlan(principal(tenantId), "pro");
+        Subscription unchanged = service.changePlan(principal(tenantId), "business");
 
         assertThat(unchanged).isSameAs(sub);
-        assertThat(tenant.getPlan()).isEqualTo("pro");
+        assertThat(tenant.getPlan()).isEqualTo("business");
         verify(tenants).save(tenant);
         verify(subscriptions, never()).save(any());
+        verify(audit, never()).record(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void rejectsLegacyProPlanWhenUnavailable() {
+        UUID tenantId = UUID.randomUUID();
+        Subscription sub = subscription(tenantId, plan("free", "Free", 0));
+        when(subscriptions.findFirstByTenantIdAndStatus(tenantId, SubscriptionStatus.active))
+                .thenReturn(Optional.of(sub));
+        when(plans.findById("pro")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.changePlan(principal(tenantId), "pro"))
+                .isInstanceOf(KonvoException.class)
+                .hasMessageContaining("Plan is not available");
+
+        verify(subscriptions, never()).save(any());
+        verify(tenants, never()).save(any());
         verify(audit, never()).record(any(), any(), any(), any(), any());
     }
 
@@ -147,10 +170,13 @@ class SubscriptionServiceTest {
         p.setId(id);
         p.setName(name);
         p.setMonthlyPriceUsd(BigDecimal.valueOf(priceUsd));
+        p.setMonthlyPriceTtd(BigDecimal.valueOf(priceUsd * 6L));
         p.setMsgMonthlyLimit(1000);
+        p.setCustomerMonthlyLimit(500);
         p.setAiRunsMonthlyLimit(500);
         p.setAiTokensMonthlyLimit(100_000);
         p.setKnowledgeSourcesLimit(10);
+        p.setKnowledgeCharsLimit(25_000);
         p.setMembersLimit(5);
         p.setPublic(true);
         return p;

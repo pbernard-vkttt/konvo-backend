@@ -32,17 +32,17 @@ class UsageServiceTest {
         UsageService usage = new UsageService(jdbc);
 
         Subscription sub = subscription(planLimits(500, 200, 50_000));
-        boolean over = usage.isOverAiQuota(new UsageService.Snapshot(100, 200, 50_000), sub.getPlan());
+        boolean over = usage.isOverAiQuota(new UsageService.Snapshot(100, 200, 50_000, 3), sub.getPlan());
 
         assertThat(over).isTrue();
     }
 
     @Test
-    void overQuotaWhenTokensExceed() {
+    void ignoresKnowledgeAndSeatUsageForAiQuota() {
         UsageService usage = new UsageService(jdbc);
 
         Subscription sub = subscription(planLimits(500, 200, 50_000));
-        assertThat(usage.isOverAiQuota(new UsageService.Snapshot(10, 50, 60_000), sub.getPlan())).isTrue();
+        assertThat(usage.isOverAiQuota(new UsageService.Snapshot(10, 50, 60_000, 99), sub.getPlan())).isFalse();
     }
 
     @Test
@@ -50,42 +50,55 @@ class UsageServiceTest {
         UsageService usage = new UsageService(jdbc);
 
         Subscription sub = subscription(planLimits(500, 200, 50_000));
-        assertThat(usage.isOverAiQuota(new UsageService.Snapshot(10, 50, 1000), sub.getPlan())).isFalse();
+        assertThat(usage.isOverAiQuota(new UsageService.Snapshot(10, 50, 1000, 1), sub.getPlan())).isFalse();
     }
 
     @Test
-    void snapshotReadsAllThreeCounters() {
+    void snapshotReadsAllFourBillingCounters() {
         UsageService usage = new UsageService(jdbc);
         when(jdbc.queryForObject(anyString(), eq(Long.class), any(), any(), any()))
-                .thenReturn(12L, 34L, 5678L);
+                .thenReturn(12L, 34L);
+        when(jdbc.queryForObject(anyString(), eq(Long.class), any()))
+                .thenReturn(5678L, 4L);
 
         UsageService.Snapshot s = usage.snapshot(UUID.randomUUID(), Instant.now(), Instant.now());
-        assertThat(s.messagesSent()).isEqualTo(12);
+        assertThat(s.activeCustomers()).isEqualTo(12);
         assertThat(s.aiRuns()).isEqualTo(34);
-        assertThat(s.aiTokens()).isEqualTo(5678);
+        assertThat(s.knowledgeChars()).isEqualTo(5678);
+        assertThat(s.members()).isEqualTo(4);
     }
 
     @Test
-    void messageCounterUsesSentAtTimestamp() {
+    void activeCustomerCounterUsesMessageActivityAndConversationCustomer() {
         UsageService usage = new UsageService(jdbc);
         when(jdbc.queryForObject(anyString(), eq(Long.class), any(), any(), any()))
-                .thenReturn(0L, 0L, 0L);
+                .thenReturn(0L, 0L);
+        when(jdbc.queryForObject(anyString(), eq(Long.class), any()))
+                .thenReturn(0L, 0L);
 
         usage.snapshot(UUID.randomUUID(), Instant.now(), Instant.now());
 
         ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
-        verify(jdbc, times(3)).queryForObject(sql.capture(), eq(Long.class), any(), any(), any());
+        verify(jdbc, times(2)).queryForObject(sql.capture(), eq(Long.class), any(), any(), any());
         assertThat(sql.getAllValues().get(0))
                 .contains("from messages")
+                .contains("join conversations")
+                .contains("count(distinct c.customer_id)")
                 .contains("sent_at")
                 .doesNotContain("created_at");
+        assertThat(sql.getAllValues().get(1))
+                .contains("from ai_runs")
+                .contains("purpose = 'reply'")
+                .contains("status = 'ok'");
     }
 
     @Test
     void snapshotBindsPeriodInstantsWithExplicitTimestampType() {
         UsageService usage = new UsageService(jdbc);
         when(jdbc.queryForObject(anyString(), eq(Long.class), any(), any(), any()))
-                .thenReturn(0L, 0L, 0L);
+                .thenReturn(0L, 0L);
+        when(jdbc.queryForObject(anyString(), eq(Long.class), any()))
+                .thenReturn(0L, 0L);
 
         Instant start = Instant.parse("2026-05-01T00:00:00Z");
         Instant end = Instant.parse("2026-06-01T00:00:00Z");
@@ -94,7 +107,7 @@ class UsageServiceTest {
 
         ArgumentCaptor<Object> startParam = ArgumentCaptor.forClass(Object.class);
         ArgumentCaptor<Object> endParam = ArgumentCaptor.forClass(Object.class);
-        verify(jdbc, times(3)).queryForObject(anyString(), eq(Long.class),
+        verify(jdbc, times(2)).queryForObject(anyString(), eq(Long.class),
                 any(), startParam.capture(), endParam.capture());
 
         assertThat(startParam.getAllValues()).allSatisfy(value -> assertThat(value)
@@ -116,10 +129,13 @@ class UsageServiceTest {
         p.setId("free");
         p.setName("Free");
         p.setMonthlyPriceUsd(BigDecimal.ZERO);
+        p.setMonthlyPriceTtd(BigDecimal.ZERO);
         p.setMsgMonthlyLimit(msgs);
+        p.setCustomerMonthlyLimit(msgs);
         p.setAiRunsMonthlyLimit(aiRuns);
         p.setAiTokensMonthlyLimit(aiTokens);
         p.setKnowledgeSourcesLimit(5);
+        p.setKnowledgeCharsLimit(5000);
         p.setMembersLimit(3);
         return p;
     }

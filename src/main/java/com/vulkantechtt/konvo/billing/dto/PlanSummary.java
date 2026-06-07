@@ -5,10 +5,10 @@ import java.math.BigDecimal;
 public record PlanSummary(
         String id,
         String name,
+        BigDecimal monthlyPriceTtd,
         BigDecimal monthlyPriceUsd,
-        int msgMonthlyLimit,
+        int customerMonthlyLimit,
         int aiRunsMonthlyLimit,
-        int aiTokensMonthlyLimit,
-        int knowledgeSourcesLimit,
+        int knowledgeCharsLimit,
         int membersLimit) {
 }

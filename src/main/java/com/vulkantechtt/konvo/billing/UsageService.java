@@ -11,37 +11,45 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Reads usage for the current subscription period directly from raw tables
- * (`messages`, `ai_runs`). When per-tenant volumes grow past the point where
- * scanning is cheap (low millions of rows), we'll fill the V006
- * {@code usage_counters} table via a daily roll-up and read from there.
+ * Reads billing usage for the current subscription period directly from raw
+ * tables. The app billing surface tracks the advertised self-serve plan
+ * dimensions: monthly active customers, AI replies, knowledge-base characters,
+ * and active seats. The older {@code usage_counters} roll-up remains an
+ * analytics path for message/token history, not the billing contract.
  */
 @Service
 public class UsageService {
 
-    private static final String SQL_MESSAGES_SENT = """
-            select count(*)
-            from messages
-            where tenant_id = ?
-              and direction = 'outbound'
-              and sent_at >= ?
-              and sent_at < ?
+    private static final String SQL_ACTIVE_CUSTOMERS = """
+            select count(distinct c.customer_id)
+            from messages m
+            join conversations c on c.id = m.conversation_id
+            where m.tenant_id = ?
+              and m.sent_at >= ?
+              and m.sent_at < ?
             """;
 
-    private static final String SQL_AI_RUNS = """
+    private static final String SQL_AI_REPLIES = """
             select count(*)
             from ai_runs
             where tenant_id = ?
+              and purpose = 'reply'
+              and status = 'ok'
               and created_at >= ?
               and created_at < ?
             """;
 
-    private static final String SQL_AI_TOKENS = """
-            select coalesce(sum(prompt_tokens + completion_tokens), 0)
-            from ai_runs
+    private static final String SQL_KNOWLEDGE_CHARS = """
+            select coalesce(sum(char_count), 0)
+            from knowledge_sources
             where tenant_id = ?
-              and created_at >= ?
-              and created_at < ?
+            """;
+
+    private static final String SQL_ACTIVE_MEMBERS = """
+            select count(*)
+            from tenant_memberships
+            where tenant_id = ?
+              and status = 'active'
             """;
 
     private final JdbcTemplate jdbc;
@@ -54,13 +62,13 @@ public class UsageService {
     public Snapshot snapshot(UUID tenantId, Instant periodStart, Instant periodEnd) {
         SqlParameterValue start = timestampParam(periodStart);
         SqlParameterValue end = timestampParam(periodEnd);
-        long msgs = asLong(jdbc.queryForObject(SQL_MESSAGES_SENT, Long.class,
+        long activeCustomers = asLong(jdbc.queryForObject(SQL_ACTIVE_CUSTOMERS, Long.class,
                 tenantId, start, end));
-        long aiRuns = asLong(jdbc.queryForObject(SQL_AI_RUNS, Long.class,
+        long aiReplies = asLong(jdbc.queryForObject(SQL_AI_REPLIES, Long.class,
                 tenantId, start, end));
-        long tokens = asLong(jdbc.queryForObject(SQL_AI_TOKENS, Long.class,
-                tenantId, start, end));
-        return new Snapshot(msgs, aiRuns, tokens);
+        long knowledgeChars = asLong(jdbc.queryForObject(SQL_KNOWLEDGE_CHARS, Long.class, tenantId));
+        long members = asLong(jdbc.queryForObject(SQL_ACTIVE_MEMBERS, Long.class, tenantId));
+        return new Snapshot(activeCustomers, aiReplies, knowledgeChars, members);
     }
 
     /**
@@ -75,8 +83,7 @@ public class UsageService {
     }
 
     public boolean isOverAiQuota(Snapshot s, Plan plan) {
-        return s.aiRuns() >= plan.getAiRunsMonthlyLimit()
-                || s.aiTokens() >= plan.getAiTokensMonthlyLimit();
+        return s.aiRuns() >= plan.getAiRunsMonthlyLimit();
     }
 
     private static long asLong(Object o) {
@@ -89,5 +96,5 @@ public class UsageService {
                 OffsetDateTime.ofInstant(value, ZoneOffset.UTC));
     }
 
-    public record Snapshot(long messagesSent, long aiRuns, long aiTokens) {}
+    public record Snapshot(long activeCustomers, long aiRuns, long knowledgeChars, long members) {}
 }

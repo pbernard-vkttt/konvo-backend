@@ -27,6 +27,7 @@ import com.vulkantechtt.konvo.users.TenantMembershipRepository;
 import com.vulkantechtt.konvo.users.User;
 import com.vulkantechtt.konvo.users.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -507,6 +508,16 @@ class AuthServiceTest {
     private static Subscription subscription(String planId) {
         Plan plan = new Plan();
         plan.setId(planId);
+        plan.setName(planId);
+        plan.setMonthlyPriceTtd(BigDecimal.ZERO);
+        plan.setMonthlyPriceUsd(BigDecimal.ZERO);
+        plan.setMsgMonthlyLimit(0);
+        plan.setCustomerMonthlyLimit(0);
+        plan.setAiRunsMonthlyLimit(0);
+        plan.setAiTokensMonthlyLimit(0);
+        plan.setKnowledgeSourcesLimit(0);
+        plan.setKnowledgeCharsLimit(0);
+        plan.setMembersLimit(0);
         Subscription subscription = new Subscription();
         subscription.setId(UUID.randomUUID());
         subscription.setPlan(plan);

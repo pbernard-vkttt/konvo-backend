@@ -13,5 +13,5 @@ public record BillingSnapshot(
         UsageSummary usage,
         boolean overAiQuota) {
 
-    public record UsageSummary(long messagesSent, long aiRuns, long aiTokens) {}
+    public record UsageSummary(long activeCustomers, long aiRuns, long knowledgeChars, long members) {}
 }
