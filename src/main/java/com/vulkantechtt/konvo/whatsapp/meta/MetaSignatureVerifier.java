@@ -30,6 +30,17 @@ public final class MetaSignatureVerifier {
         return constantTimeEquals(expected, presented);
     }
 
+    /** Returns the raw HMAC-SHA256 bytes (used for signed_request verification). */
+    static byte[] computeBytes(String secret, byte[] data) {
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            return mac.doFinal(data);
+        } catch (Exception e) {
+            throw new IllegalStateException("HMAC-SHA256 unavailable", e);
+        }
+    }
+
     static String computeHex(String secret, byte[] body) {
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
