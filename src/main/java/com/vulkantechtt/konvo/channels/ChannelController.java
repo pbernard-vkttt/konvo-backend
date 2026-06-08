@@ -2,6 +2,7 @@ package com.vulkantechtt.konvo.channels;
 
 import com.vulkantechtt.konvo.channels.dto.ChannelResponse;
 import com.vulkantechtt.konvo.channels.dto.ConnectWhatsAppRequest;
+import com.vulkantechtt.konvo.channels.dto.EmbeddedSignupRequest;
 import com.vulkantechtt.konvo.channels.dto.UpdateChannelRequest;
 import com.vulkantechtt.konvo.security.KonvoPrincipal;
 import jakarta.validation.Valid;
@@ -48,6 +49,15 @@ public class ChannelController {
     public ChannelResponse connectWhatsApp(@AuthenticationPrincipal KonvoPrincipal principal,
                                            @Valid @RequestBody ConnectWhatsAppRequest req) {
         return channels.connectWhatsApp(principal, req);
+    }
+
+    @PostMapping("/whatsapp/embedded-signup")
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
+    public ChannelResponse connectWhatsAppViaEmbeddedSignup(
+            @AuthenticationPrincipal KonvoPrincipal principal,
+            @Valid @RequestBody EmbeddedSignupRequest req) {
+        return channels.connectWhatsAppViaEmbeddedSignup(principal, req);
     }
 
     @PatchMapping("/{id}")

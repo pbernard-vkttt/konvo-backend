@@ -11,16 +11,20 @@ import static org.mockito.Mockito.when;
 import com.vulkantechtt.konvo.audit.AuditService;
 import com.vulkantechtt.konvo.auth.EmailVerificationGuard;
 import com.vulkantechtt.konvo.channels.dto.ConnectWhatsAppRequest;
+import com.vulkantechtt.konvo.channels.dto.EmbeddedSignupRequest;
 import com.vulkantechtt.konvo.common.KonvoException;
 import com.vulkantechtt.konvo.security.KonvoPrincipal;
 import com.vulkantechtt.konvo.users.Role;
+import com.vulkantechtt.konvo.whatsapp.WhatsAppOnboardingGateway;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.ObjectProvider;
 
 @ExtendWith(MockitoExtension.class)
 class ChannelServiceTest {
@@ -28,11 +32,13 @@ class ChannelServiceTest {
     @Mock ChannelRepository channels;
     @Mock AuditService audit;
     @Mock EmailVerificationGuard emailVerification;
+    @Mock ObjectProvider<WhatsAppOnboardingGateway> onboarding;
+    @Mock WhatsAppOnboardingGateway gateway;
     private ChannelService service;
 
     @BeforeEach
     void setUp() {
-        service = new ChannelService(channels, audit, emailVerification, "http://api.test");
+        service = new ChannelService(channels, audit, emailVerification, onboarding, "http://api.test");
     }
 
     private static KonvoPrincipal principal(UUID tenantId) {
@@ -109,6 +115,49 @@ class ChannelServiceTest {
 
         assertThat(resp.webhookUrl())
                 .isEqualTo("http://api.test/api/webhooks/meta/11111111-1111-1111-1111-111111111111");
+    }
+
+    @Test
+    void embeddedSignupExchangesCodeAndSavesChannel() {
+        UUID tenantId = UUID.randomUUID();
+        when(channels.existsByTenantIdAndProvider(tenantId, ChannelProvider.whatsapp_meta))
+                .thenReturn(false);
+        when(channels.findByPhoneNumberId("12345")).thenReturn(Optional.empty());
+        when(onboarding.getIfAvailable()).thenReturn(gateway);
+        when(gateway.completeSignup("auth-code", "12345", "67890"))
+                .thenReturn(new WhatsAppOnboardingGateway.OnboardingResult(
+                        "EAAtoken", "app-secret", "+18681234567", "Doubles King"));
+        when(channels.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        service.connectWhatsAppViaEmbeddedSignup(
+                principal(tenantId),
+                new EmbeddedSignupRequest("auth-code", "12345", "67890", null));
+
+        ArgumentCaptor<Channel> captor = ArgumentCaptor.forClass(Channel.class);
+        verify(channels).save(captor.capture());
+        Channel saved = captor.getValue();
+        assertThat(saved.getProvider()).isEqualTo(ChannelProvider.whatsapp_meta);
+        assertThat(saved.getDisplayName()).isEqualTo("Doubles King");
+        assertThat(saved.getPhoneNumber()).isEqualTo("+18681234567");
+        assertThat(saved.getAccessToken()).isEqualTo("EAAtoken");
+        assertThat(saved.getAppSecret()).isEqualTo("app-secret");
+        assertThat(saved.getStatus()).isEqualTo(ChannelStatus.connected);
+    }
+
+    @Test
+    void embeddedSignupRejectedWhenGatewayUnavailable() {
+        UUID tenantId = UUID.randomUUID();
+        when(channels.existsByTenantIdAndProvider(tenantId, ChannelProvider.whatsapp_meta))
+                .thenReturn(false);
+        when(channels.findByPhoneNumberId("12345")).thenReturn(Optional.empty());
+        when(onboarding.getIfAvailable()).thenReturn(null);
+
+        assertThatThrownBy(() -> service.connectWhatsAppViaEmbeddedSignup(
+                principal(tenantId),
+                new EmbeddedSignupRequest("auth-code", "12345", "67890", null)))
+                .isInstanceOf(KonvoException.class)
+                .hasMessageContaining("not available");
+        verify(channels, never()).save(any());
     }
 
     private static ConnectWhatsAppRequest sampleRequest() {
