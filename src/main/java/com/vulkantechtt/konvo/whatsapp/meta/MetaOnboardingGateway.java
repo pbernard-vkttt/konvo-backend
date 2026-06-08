@@ -4,6 +4,7 @@ import com.vulkantechtt.konvo.common.KonvoException;
 import com.vulkantechtt.konvo.whatsapp.WhatsAppOnboardingGateway;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.http.HttpHeaders;
@@ -42,6 +43,7 @@ public class MetaOnboardingGateway implements WhatsAppOnboardingGateway {
     private final RestClient http;
     private final ObjectMapper json;
 
+    @Autowired
     public MetaOnboardingGateway(MetaProperties props, ObjectMapper json) {
         this(props, json, RestClient.builder());
     }
