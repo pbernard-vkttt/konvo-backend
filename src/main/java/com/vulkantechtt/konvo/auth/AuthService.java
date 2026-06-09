@@ -119,7 +119,7 @@ public class AuthService {
     }
 
     @Transactional
-    public Session login(LoginRequest req, HttpServletRequest http) {
+    public Session login(LoginRequest req, String presentedRawCookie, HttpServletRequest http) {
         User user = userRepository.findByEmailIgnoreCase(req.email())
                 .orElseThrow(() -> new KonvoException(
                         org.springframework.http.HttpStatus.UNAUTHORIZED,
@@ -138,6 +138,7 @@ public class AuthService {
         user.setLastLoginAt(Instant.now());
         userRepository.save(user);
 
+        refreshTokens.revoke(presentedRawCookie);
         return buildSession(user, membership, http);
     }
 
@@ -369,7 +370,7 @@ public class AuthService {
     }
 
     @Transactional
-    public Session acceptInvitation(AcceptInvitationRequest req, HttpServletRequest http) {
+    public Session acceptInvitation(AcceptInvitationRequest req, String presentedRawCookie, HttpServletRequest http) {
         UserInvitation invitation = invitationRepository.findByTokenHash(TokenHasher.hash(req.token()))
                 .orElseThrow(() -> KonvoException.badRequest("Invitation not found"));
         Instant now = Instant.now();
@@ -415,6 +416,7 @@ public class AuthService {
                 user.getFullName() + " accepted the invite (" + membership.getRole().name().toLowerCase() + ")",
                 "/app/settings/team");
 
+        refreshTokens.revoke(presentedRawCookie);
         return buildSession(user, membership, http);
     }
 

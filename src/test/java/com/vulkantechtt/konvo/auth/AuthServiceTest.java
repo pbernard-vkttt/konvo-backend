@@ -377,10 +377,12 @@ class AuthServiceTest {
 
         AuthService.Session session = service.login(
                 new LoginRequest("owner@example.com", "correct-password", "requested-workspace"),
+                "old-refresh-token",
                 http);
 
         assertThat(session.body().tenant().slug()).isEqualTo("requested-workspace");
         assertThat(session.body().tenant().role()).isEqualTo(Role.ADMIN);
+        verify(refreshTokens).revoke("old-refresh-token");
     }
 
     @Test
@@ -416,9 +418,11 @@ class AuthServiceTest {
 
         AuthService.Session session = service.login(
                 new LoginRequest("owner@example.com", "correct-password", null),
+                "old-refresh-token",
                 http);
 
         assertThat(session.body().tenant().slug()).isEqualTo("completed-newest");
+        verify(refreshTokens).revoke("old-refresh-token");
     }
 
     @Test
@@ -498,11 +502,13 @@ class AuthServiceTest {
 
         AuthService.Session session = service.acceptInvitation(
                 new com.vulkantechtt.konvo.auth.dto.AcceptInvitationRequest("raw-invite", "Member Name", "password-123"),
+                "old-refresh-token",
                 http);
 
         assertThat(user.isEmailVerified()).isTrue();
         assertThat(session.body().user().emailVerified()).isTrue();
         verify(userRepository).save(user);
+        verify(refreshTokens).revoke("old-refresh-token");
     }
 
     private static Subscription subscription(String planId) {

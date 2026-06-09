@@ -47,7 +47,7 @@ public class AuthController {
             @Valid @RequestBody LoginRequest req,
             HttpServletRequest http) {
         rateLimit.checkLogin(clientIp(http), req.email());
-        AuthService.Session session = authService.login(req, http);
+        AuthService.Session session = authService.login(req, cookies.readFromRequest(http), http);
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, cookies.build(session.refreshTokenRaw()).toString())
                 .body(session.body());
@@ -121,7 +121,7 @@ public class AuthController {
     public ResponseEntity<AuthSessionResponse> acceptInvitation(
             @Valid @RequestBody AcceptInvitationRequest req,
             HttpServletRequest http) {
-        AuthService.Session session = authService.acceptInvitation(req, http);
+        AuthService.Session session = authService.acceptInvitation(req, cookies.readFromRequest(http), http);
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, cookies.build(session.refreshTokenRaw()).toString())
                 .body(session.body());
