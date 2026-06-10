@@ -10,7 +10,11 @@ import com.vulkantechtt.konvo.customers.CustomerRepository;
 import com.vulkantechtt.konvo.realtime.SseHub;
 import com.vulkantechtt.konvo.security.KonvoPrincipal;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,9 +53,16 @@ public class MessageService {
     @Transactional(readOnly = true)
     public PageResponse<MessageResponse> list(KonvoPrincipal principal, UUID conversationId, Pageable pageable) {
         conversationService.requireVisibleConversation(principal, conversationId);
-        return PageResponse.from(
-                messages.findByConversationIdOrderBySentAtAsc(conversationId, pageable)
-                        .map(MessageService::toResponse));
+        Page<Message> newestFirst = messages.findLatestByConversationId(conversationId, pageable);
+        List<Message> chronological = new ArrayList<>(newestFirst.getContent());
+        Collections.reverse(chronological);
+        return new PageResponse<>(
+                chronological.stream().map(MessageService::toResponse).toList(),
+                newestFirst.getNumber(),
+                newestFirst.getSize(),
+                newestFirst.getTotalElements(),
+                newestFirst.getTotalPages(),
+                newestFirst.hasNext());
     }
 
     @Transactional

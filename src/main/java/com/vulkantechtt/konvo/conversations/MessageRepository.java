@@ -8,6 +8,8 @@ import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface MessageRepository extends JpaRepository<Message, UUID> {
 
@@ -16,7 +18,19 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
     /** Batch idempotency check for a multi-message webhook payload (M-11). */
     List<Message> findByWaMessageIdIn(Collection<String> waMessageIds);
 
-    Page<Message> findByConversationIdOrderBySentAtAsc(UUID conversationId, Pageable pageable);
+    @Query(
+            value = """
+                    select m from Message m
+                    where m.conversationId = :conversationId
+                    order by m.sentAt desc, m.id desc
+                    """,
+            countQuery = """
+                    select count(m) from Message m
+                    where m.conversationId = :conversationId
+                    """)
+    Page<Message> findLatestByConversationId(
+            @Param("conversationId") UUID conversationId,
+            Pageable pageable);
 
     /** Most recent customer (inbound) message — anchors the WhatsApp 24h window. */
     Optional<Message> findFirstByConversationIdAndDirectionOrderBySentAtDesc(
