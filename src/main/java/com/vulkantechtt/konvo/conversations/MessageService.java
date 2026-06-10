@@ -84,6 +84,8 @@ public class MessageService {
         msg.setContentType("text");
         msg.setBody(req.body());
         msg.setStatus(MessageStatus.queued);
+        msg.setSenderType(SenderType.agent);
+        msg.setSenderName(principal.fullName());
         msg.setSentAt(Instant.now());
         messages.save(msg);
 
@@ -105,7 +107,8 @@ public class MessageService {
         // this same transaction, so it commits atomically with the queued
         // Message row and survives a broker outage (audit H-1).
         dispatcher.enqueue(new OutboundMessageCommand(
-                messageId, tenantId, conversationId, channelId, customerId, phone, req.body()));
+                messageId, tenantId, conversationId, channelId, customerId, phone, req.body(),
+                SenderType.agent, principal.fullName()));
 
         // SSE is best-effort optimistic UI and stays post-commit.
         AfterCommit.run(() -> {
@@ -127,6 +130,8 @@ public class MessageService {
                 m.getContentType(),
                 m.getBody(),
                 m.getStatus(),
+                m.getSenderType(),
+                m.getSenderName(),
                 m.getSentAt(),
                 m.getDeliveredAt(),
                 m.getReadAt(),

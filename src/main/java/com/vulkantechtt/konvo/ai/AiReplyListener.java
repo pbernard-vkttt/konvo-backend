@@ -159,7 +159,8 @@ public class AiReplyListener {
             }
             dispatcher.enqueue(new OutboundMessageCommand(
                     null, cmd.tenantId(), cmd.conversationId(), cmd.channelId(),
-                    cmd.customerId(), customer.getPhone(), body));
+                    cmd.customerId(), customer.getPhone(), body,
+                    com.vulkantechtt.konvo.conversations.SenderType.ai, null));
         } catch (Exception e) {
             int latency = (int) (System.currentTimeMillis() - start);
             log.error("AI reply failed for conversation {}", cmd.conversationId(), e);

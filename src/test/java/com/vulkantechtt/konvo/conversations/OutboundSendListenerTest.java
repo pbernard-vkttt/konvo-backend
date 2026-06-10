@@ -34,7 +34,7 @@ class OutboundSendListenerTest {
     private OutboundMessageCommand command(UUID messageId) {
         return new OutboundMessageCommand(
                 messageId, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                UUID.randomUUID(), "+18681234567", "hello");
+                UUID.randomUUID(), "+18681234567", "hello", SenderType.ai, null);
     }
 
     @Test

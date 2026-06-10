@@ -43,7 +43,8 @@ class OutboxRelayTest {
         UUID id = UUID.randomUUID();
         OutboundMessageCommand cmd = new OutboundMessageCommand(
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                UUID.randomUUID(), "+18681234567", "hi");
+                UUID.randomUUID(), "+18681234567", "hi",
+                com.vulkantechtt.konvo.conversations.SenderType.ai, null);
         String json = mapper.writeValueAsString(cmd);
 
         when(jdbc.query(anyString(), any(RowMapper.class), any())).thenAnswer(inv -> {

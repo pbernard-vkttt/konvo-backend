@@ -91,6 +91,11 @@ public class OutboundSendWriter {
         msg.setDirection(MessageDirection.outbound);
         msg.setContentType("text");
         msg.setBody(cmd.body());
+        // This branch only runs for commands with no pre-persisted row — i.e. the
+        // AI/Vee pipeline (messageId == null). Older in-flight commands may carry a
+        // null senderType; treat them as ai, since that's the only producer here.
+        msg.setSenderType(cmd.senderType() != null ? cmd.senderType() : SenderType.ai);
+        msg.setSenderName(cmd.senderName());
         msg.setSentAt(Instant.now());
         return new ResolvedMessage(msg, false);
     }

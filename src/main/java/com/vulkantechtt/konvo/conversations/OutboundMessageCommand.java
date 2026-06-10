@@ -15,4 +15,6 @@ public record OutboundMessageCommand(
         UUID channelId,
         UUID customerId,
         String toPhoneE164,
-        String body) {}
+        String body,
+        SenderType senderType,
+        String senderName) {}

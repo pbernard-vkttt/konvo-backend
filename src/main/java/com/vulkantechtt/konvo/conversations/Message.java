@@ -38,6 +38,13 @@ public class Message extends BaseEntity {
     @Column(name = "status", nullable = false, length = 16)
     private MessageStatus status = MessageStatus.received;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "sender_type", length = 16)
+    private SenderType senderType;
+
+    @Column(name = "sender_name", length = 160)
+    private String senderName;
+
     @Column(name = "sent_at", nullable = false)
     private Instant sentAt = Instant.now();
 
@@ -83,6 +90,12 @@ public class Message extends BaseEntity {
 
     public MessageStatus getStatus() { return status; }
     public void setStatus(MessageStatus status) { this.status = status; }
+
+    public SenderType getSenderType() { return senderType; }
+    public void setSenderType(SenderType senderType) { this.senderType = senderType; }
+
+    public String getSenderName() { return senderName; }
+    public void setSenderName(String senderName) { this.senderName = senderName; }
 
     public Instant getSentAt() { return sentAt; }
     public void setSentAt(Instant sentAt) { this.sentAt = sentAt; }

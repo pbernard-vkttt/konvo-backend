@@ -26,7 +26,8 @@ class OutboxPublisherTest {
         OutboxPublisher publisher = new OutboxPublisher(jdbc, JsonMapper.builder().build());
         OutboundMessageCommand cmd = new OutboundMessageCommand(
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                UUID.randomUUID(), "+18681234567", "hello there");
+                UUID.randomUUID(), "+18681234567", "hello there",
+                com.vulkantechtt.konvo.conversations.SenderType.ai, null);
 
         publisher.publish("whatsapp.outbound.text", cmd);
 

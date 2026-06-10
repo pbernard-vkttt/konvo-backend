@@ -334,7 +334,8 @@ public class SchedulingService {
         }
         dispatcher.enqueue(new OutboundMessageCommand(
                 null, tenantId, conversationId, conv.getChannelId(),
-                customer.getId(), customer.getPhone(), body));
+                customer.getId(), customer.getPhone(), body,
+                com.vulkantechtt.konvo.conversations.SenderType.ai, null));
     }
 
     private String customerName(Customer c) {

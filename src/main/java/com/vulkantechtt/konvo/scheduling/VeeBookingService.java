@@ -192,7 +192,8 @@ public class VeeBookingService {
     private void send(Conversation conv, String customerPhone, String body) {
         dispatcher.enqueue(new OutboundMessageCommand(
                 null, conv.getTenantId(), conv.getId(), conv.getChannelId(),
-                conv.getCustomerId(), customerPhone, body));
+                conv.getCustomerId(), customerPhone, body,
+                com.vulkantechtt.konvo.conversations.SenderType.ai, null));
     }
 
     /** Persisted booking state: the offered slot ISO instants and whether we've re-offered once. */

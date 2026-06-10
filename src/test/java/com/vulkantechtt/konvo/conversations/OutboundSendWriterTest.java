@@ -81,7 +81,9 @@ class OutboundSendWriterTest {
                 channelId,
                 customerId,
                 "18681112222",
-                "Hello");
+                "Hello",
+                SenderType.agent,
+                "Test Agent");
     }
 
     private Message queuedMessage() {
